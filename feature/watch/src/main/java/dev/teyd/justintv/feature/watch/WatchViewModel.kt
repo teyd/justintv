@@ -27,6 +27,19 @@ import kotlinx.coroutines.withContext
 
 const val WATCH_ARG_LOGIN = "login"
 
+/** How the player is shown. Hidden means nothing is playing. */
+enum class PlayerChrome { Hidden, Expanded, Mini }
+
+/** Which bottom corner a released mini player snaps to. */
+enum class MiniSide { Left, Right }
+
+/**
+ * Left half of the window snaps left, right half snaps right. Matches dragging the card
+ * toward a corner and letting go.
+ */
+fun snapMiniSide(releaseX: Float, containerWidth: Float): MiniSide =
+    if (releaseX < containerWidth / 2f) MiniSide.Left else MiniSide.Right
+
 data class WatchUiState(
     val channelLogin: String = "",
     val isLoading: Boolean = true,
@@ -42,10 +55,11 @@ data class WatchUiState(
 )
 
 /**
- * Owns the player and the ad-free resolution loop for one channel.
+ * Owns the player for the whole activity, not one screen.
  *
- * The view model outlives configuration changes, so the ExoPlayer instance (and therefore
- * the stream) survives rotation without a service. Background playback arrives in M5.
+ * Leaving the watch screen minimises into a corner instead of stopping. [close] is what
+ * actually stops playback. Scope this view model to the activity, or the player dies with
+ * the watch destination.
  */
 @HiltViewModel
 class WatchViewModel @Inject constructor(
@@ -54,14 +68,18 @@ class WatchViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val login: String = checkNotNull(savedStateHandle[WATCH_ARG_LOGIN]) {
-        "Missing $WATCH_ARG_LOGIN navigation argument"
-    }
+    private var login: String = savedStateHandle.get<String>(WATCH_ARG_LOGIN).orEmpty()
 
     val playerHolder: PlayerHolder = playerFactory.createHolder()
 
     private val _state = MutableStateFlow(WatchUiState(channelLogin = login))
     val state: StateFlow<WatchUiState> = _state.asStateFlow()
+
+    private val _chrome = MutableStateFlow(PlayerChrome.Hidden)
+    val chrome: StateFlow<PlayerChrome> = _chrome.asStateFlow()
+
+    private val _miniSide = MutableStateFlow(MiniSide.Right)
+    val miniSide: StateFlow<MiniSide> = _miniSide.asStateFlow()
 
     private var currentMethod: PlaybackMethod? = null
     private var adBreakHandled = false
@@ -79,7 +97,42 @@ class WatchViewModel @Inject constructor(
         viewModelScope.launch {
             playerHolder.playback.collect(::onPlaybackState)
         }
+        if (login.isNotBlank()) resolveAndPlay()
+    }
+
+    /** Starts or returns to [channel]. Same channel keeps the current stream. */
+    fun open(channel: String) {
+        _chrome.value = PlayerChrome.Expanded
+        if (channel.isBlank() || channel == login && _state.value.method.isNotEmpty()) return
+        login = channel
+        errorRetries = 0
+        adBreakHandled = false
+        _state.value = WatchUiState(channelLogin = channel)
         resolveAndPlay()
+    }
+
+    fun minimize(side: MiniSide = _miniSide.value) {
+        if (_state.value.channelLogin.isBlank()) return
+        _miniSide.value = side
+        _chrome.value = PlayerChrome.Mini
+    }
+
+    fun expand() {
+        if (_state.value.channelLogin.isBlank()) return
+        _chrome.value = PlayerChrome.Expanded
+    }
+
+    fun setMiniSide(side: MiniSide) {
+        _miniSide.value = side
+    }
+
+    /** Stops playback and removes the mini player. */
+    fun close() {
+        playerHolder.stop()
+        login = ""
+        currentMethod = null
+        _state.value = WatchUiState()
+        _chrome.value = PlayerChrome.Hidden
     }
 
     /** Re-resolves the stream, avoiding proxies that served ads or failed. */
@@ -197,6 +250,8 @@ class WatchViewModel @Inject constructor(
         playerHolder.release()
         super.onCleared()
     }
+
+    val currentLogin: String get() = login
 
     companion object {
         /** Mirrors the reload cooldown used by the browser scripts: no cascading restarts. */

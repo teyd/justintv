@@ -86,6 +86,7 @@ fun PlayerPane(
     onBack: () -> Unit,
     onTryAnotherSource: () -> Unit,
     onToggleChat: (() -> Unit)?,
+    onDoubleTap: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val playback by holder.playback.collectAsStateWithLifecycle()
@@ -118,11 +119,14 @@ fun PlayerPane(
     Box(
         modifier = modifier
             .background(Color.Black)
-            .pointerInput(Unit) {
-                detectTapGestures {
-                    controlsVisible = !controlsVisible
-                    touches++
-                }
+            .pointerInput(onDoubleTap) {
+                detectTapGestures(
+                    onDoubleTap = { onDoubleTap?.invoke() },
+                    onTap = {
+                        controlsVisible = !controlsVisible
+                        touches++
+                    },
+                )
             },
     ) {
         VideoPlayer(player = holder, modifier = Modifier.fillMaxSize())
