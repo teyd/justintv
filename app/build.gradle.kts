@@ -16,6 +16,10 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+
+        // Set in .env and loaded with `varlock run -- ./gradlew ...`. Empty until login is wired.
+        val twitchClientId = System.getenv("TWITCH_CLIENT_ID").orEmpty()
+        buildConfigField("String", "TWITCH_CLIENT_ID", "\"$twitchClientId\"")
     }
 
     compileOptions {

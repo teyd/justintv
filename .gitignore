@@ -28,3 +28,8 @@ keystore.properties
 
 # Tooling
 .mise.toml.local
+
+# Secrets. Schema is committed; values are not.
+.env
+.env.*
+!.env.schema
