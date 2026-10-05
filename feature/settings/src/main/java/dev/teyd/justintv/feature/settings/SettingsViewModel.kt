@@ -23,6 +23,7 @@ data class ProxyStatus(
 
 data class SettingsUiState(
     val backgroundPlayback: Boolean = false,
+    val pictureInPicture: Boolean = true,
     val proxyStatuses: List<ProxyStatus> = DefaultProxies.ALL.map { ProxyStatus(it) },
     val isCheckingProxies: Boolean = false,
 )
@@ -42,11 +43,20 @@ class SettingsViewModel @Inject constructor(
                 _state.update { it.copy(backgroundPlayback = enabled) }
             }
         }
+        viewModelScope.launch {
+            playbackSettings.pictureInPicture.collect { enabled ->
+                _state.update { it.copy(pictureInPicture = enabled) }
+            }
+        }
         checkProxies()
     }
 
     fun setBackgroundPlayback(enabled: Boolean) {
         viewModelScope.launch { playbackSettings.setBackgroundPlayback(enabled) }
+    }
+
+    fun setPictureInPicture(enabled: Boolean) {
+        viewModelScope.launch { playbackSettings.setPictureInPicture(enabled) }
     }
 
     /**

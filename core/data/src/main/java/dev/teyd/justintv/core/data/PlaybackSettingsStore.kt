@@ -15,11 +15,19 @@ import kotlinx.coroutines.flow.map
  */
 class PlaybackSettingsStore(private val dataStore: DataStore<Preferences>) {
 
-    private val key = booleanPreferencesKey("background_playback")
+    private val backgroundKey = booleanPreferencesKey("background_playback")
+    private val pipKey = booleanPreferencesKey("picture_in_picture")
 
-    val backgroundPlayback: Flow<Boolean> = dataStore.data.map { it[key] == true }
+    val backgroundPlayback: Flow<Boolean> = dataStore.data.map { it[backgroundKey] == true }
+
+    /** On by default: leaving the app shrinks the video into a system PiP window. */
+    val pictureInPicture: Flow<Boolean> = dataStore.data.map { it[pipKey] != false }
 
     suspend fun setBackgroundPlayback(enabled: Boolean) {
-        dataStore.edit { it[key] = enabled }
+        dataStore.edit { it[backgroundKey] = enabled }
+    }
+
+    suspend fun setPictureInPicture(enabled: Boolean) {
+        dataStore.edit { it[pipKey] = enabled }
     }
 }

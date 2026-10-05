@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -62,6 +63,7 @@ fun MiniPlayer(
         modifier = modifier
             .fillMaxSize()
             .onSizeChanged { containerWidth = it.width.toFloat() }
+            .navigationBarsPadding()
             .padding(bottom = MiniMargin),
     ) {
         Box(

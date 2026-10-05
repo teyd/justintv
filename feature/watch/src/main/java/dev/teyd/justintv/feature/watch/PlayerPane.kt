@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Tune
@@ -40,6 +42,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,6 +97,8 @@ fun PlayerPane(
     val selected by holder.selectedQuality.collectAsStateWithLifecycle()
 
     var controlsVisible by remember { mutableStateOf(true) }
+    var dragDown by remember { mutableFloatStateOf(0f) }
+    val minimizeAfter = with(androidx.compose.ui.platform.LocalDensity.current) { 120.dp.toPx() }
     var touches by remember { mutableIntStateOf(0) }
     var showStats by rememberSaveable { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }
@@ -119,6 +124,16 @@ fun PlayerPane(
     Box(
         modifier = modifier
             .background(Color.Black)
+            .pointerInput(onBack) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (dragDown > minimizeAfter) onBack()
+                        dragDown = 0f
+                    },
+                    onDragCancel = { dragDown = 0f },
+                    onVerticalDrag = { _, dy -> if (dy > 0f) dragDown += dy },
+                )
+            }
             .pointerInput(onDoubleTap) {
                 detectTapGestures(
                     onDoubleTap = { onDoubleTap?.invoke() },
@@ -166,7 +181,7 @@ fun PlayerPane(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Minimise", tint = Color.White)
                     }
                     Text(
                         text = channel,

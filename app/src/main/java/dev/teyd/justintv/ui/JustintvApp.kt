@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,6 +18,7 @@ import dev.teyd.justintv.feature.settings.SettingsScreen
 import dev.teyd.justintv.feature.streams.GAME_ARG_NAME
 import dev.teyd.justintv.feature.streams.GameScreen
 import dev.teyd.justintv.feature.streams.HomeScreen
+import dev.teyd.justintv.core.player.VideoPlayer
 import dev.teyd.justintv.feature.watch.MiniPlayer
 import dev.teyd.justintv.feature.watch.PlayerChrome
 import dev.teyd.justintv.feature.watch.WATCH_ARG_LOGIN
@@ -33,6 +36,14 @@ fun JustintvApp() {
     val playback = activityPlayback()
     val chrome by playback.chrome.collectAsStateWithLifecycle()
     val playing by playback.state.collectAsStateWithLifecycle()
+    val settings = hiltViewModel<PipSettingsViewModel>()
+    val inPip = rememberInPip()
+    PipBinding(playback, settings.store)
+
+    if (inPip && chrome != PlayerChrome.Hidden) {
+        VideoPlayer(player = playback.playerHolder, modifier = Modifier.fillMaxSize())
+        return
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
@@ -75,6 +86,7 @@ fun JustintvApp() {
 
         if (chrome == PlayerChrome.Mini && playing.channelLogin.isNotBlank()) {
             MiniPlayer(
+                modifier = Modifier.zIndex(1f),
                 viewModel = playback,
                 onExpand = {
                     playback.expand()

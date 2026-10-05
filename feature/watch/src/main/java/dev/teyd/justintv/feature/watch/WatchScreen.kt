@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +63,7 @@ fun WatchScreen(
         val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
         var chatVisible by rememberSaveable { mutableStateOf(false) }
 
+        BackHandler(onBack = onMinimize)
         LaunchedEffect(channelLogin) { viewModel.open(channelLogin) }
         Immersive(landscape)
         LightStatusBarIcons(light = false)

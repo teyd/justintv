@@ -56,6 +56,20 @@ fun SettingsScreen(
         ) {
             item {
                 ListItem(
+                    headlineContent = { Text("Picture in picture") },
+                    supportingContent = {
+                        Text("When you leave the app, the video keeps playing in a small window over other apps.")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = state.pictureInPicture,
+                            onCheckedChange = viewModel::setPictureInPicture,
+                        )
+                    },
+                )
+            }
+            item {
+                ListItem(
                     headlineContent = { Text("Play in background") },
                     supportingContent = {
                         Text("Keep the stream going when you leave the app. Off keeps playback inside the mini player.")

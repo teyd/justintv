@@ -59,7 +59,8 @@ class JustintvApplication : Application(), SingletonImageLoader.Factory {
 
             override fun onActivityStopped(activity: Activity) {
                 startedActivities--
-                if (startedActivities == 0) playbackGate.onBackground()
+                val inPip = activity.isInPictureInPictureMode
+                if (startedActivities == 0 && !inPip) playbackGate.onBackground()
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
