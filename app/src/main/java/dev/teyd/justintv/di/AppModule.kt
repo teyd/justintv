@@ -17,7 +17,7 @@ import dev.teyd.justintv.core.adfree.ProxyHealthChecker
 import dev.teyd.justintv.core.data.LanguageFilterStore
 import dev.teyd.justintv.core.network.DirectorySource
 import dev.teyd.justintv.core.network.GqlClient
-import dev.teyd.justintv.core.network.OkHttpPlaylistFetcher
+import dev.teyd.justintv.core.network.OkHttpTextFetcher
 import dev.teyd.justintv.core.network.TwitchDirectoryApi
 import dev.teyd.justintv.core.network.TwitchHttpClient
 import dev.teyd.justintv.core.network.TwitchPlaybackApi
@@ -46,7 +46,7 @@ object AppModule {
     @Provides
     @Singleton
     fun playlistVerifier(httpClient: OkHttpClient): PlaylistVerifier =
-        PlaylistVerifier(OkHttpPlaylistFetcher(probeClient(httpClient, VERIFY_CALL_TIMEOUT_SECONDS)))
+        PlaylistVerifier(OkHttpTextFetcher(probeClient(httpClient, VERIFY_CALL_TIMEOUT_SECONDS)))
 
     @Provides
     @Singleton
@@ -58,7 +58,7 @@ object AppModule {
     @Provides
     @Singleton
     fun proxyHealthChecker(httpClient: OkHttpClient): ProxyHealthChecker =
-        ProxyHealthChecker(OkHttpPlaylistFetcher(probeClient(httpClient, PING_CALL_TIMEOUT_SECONDS)))
+        ProxyHealthChecker(OkHttpTextFetcher(probeClient(httpClient, PING_CALL_TIMEOUT_SECONDS)))
 
     @Provides
     @Singleton

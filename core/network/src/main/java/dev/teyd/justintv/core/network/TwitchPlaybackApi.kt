@@ -28,10 +28,10 @@ class TwitchPlaybackApi(
     httpClient: OkHttpClient,
     clientId: String = TwitchEndpoints.WEB_CLIENT_ID,
     gqlUrl: String = TwitchEndpoints.GQL_URL,
-) : PlaylistFetcher, PlaybackTokenSource {
+) : TextFetcher, PlaybackTokenSource {
 
     private val gql = GqlClient(httpClient, clientId, gqlUrl)
-    private val playlists = OkHttpPlaylistFetcher(httpClient)
+    private val playlists = OkHttpTextFetcher(httpClient)
 
     /**
      * Requests a stream playback access token.
@@ -54,7 +54,7 @@ class TwitchPlaybackApi(
         }
     }
 
-    override suspend fun fetchPlaylist(url: String): String = playlists.fetchPlaylist(url)
+    override suspend fun fetchText(url: String): String = playlists.fetchText(url)
 
     override suspend fun directStreamUrl(login: String, playerType: String): String {
         val token = playbackAccessToken(login, playerType)

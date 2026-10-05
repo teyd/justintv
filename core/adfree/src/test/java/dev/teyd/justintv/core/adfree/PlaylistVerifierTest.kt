@@ -1,16 +1,16 @@
 package dev.teyd.justintv.core.adfree
 
 import com.google.common.truth.Truth.assertThat
-import dev.teyd.justintv.core.network.PlaylistFetcher
+import dev.teyd.justintv.core.network.TextFetcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class PlaylistVerifierTest {
 
-    private class FakeFetcher(private val bodies: Map<String, String>) : PlaylistFetcher {
+    private class FakeFetcher(private val bodies: Map<String, String>) : TextFetcher {
         val requested = mutableListOf<String>()
 
-        override suspend fun fetchPlaylist(url: String): String {
+        override suspend fun fetchText(url: String): String {
             requested += url
             return bodies[url] ?: throw IllegalStateException("unexpected url $url")
         }

@@ -12,9 +12,9 @@ import okhttp3.Request
  * Probing code gets its own instance built on a client with short timeouts, so a proxy that
  * hangs costs a few seconds instead of half a minute.
  */
-class OkHttpPlaylistFetcher(private val client: OkHttpClient) : PlaylistFetcher {
+class OkHttpTextFetcher(private val client: OkHttpClient) : TextFetcher {
 
-    override suspend fun fetchPlaylist(url: String): String {
+    override suspend fun fetchText(url: String): String {
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", TwitchEndpoints.USER_AGENT)

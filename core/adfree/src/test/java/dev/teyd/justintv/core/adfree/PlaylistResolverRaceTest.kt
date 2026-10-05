@@ -3,7 +3,7 @@ package dev.teyd.justintv.core.adfree
 import com.google.common.truth.Truth.assertThat
 import dev.teyd.justintv.core.network.PlaybackException
 import dev.teyd.justintv.core.network.PlaybackTokenSource
-import dev.teyd.justintv.core.network.PlaylistFetcher
+import dev.teyd.justintv.core.network.TextFetcher
 import dev.teyd.justintv.core.network.model.PlaybackAccessToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.currentTime
@@ -33,8 +33,8 @@ class PlaylistResolverRaceTest {
         private val delays: Map<String, Long>,
         private val body: String,
         private val failing: Set<String> = emptySet(),
-    ) : PlaylistFetcher {
-        override suspend fun fetchPlaylist(url: String): String {
+    ) : TextFetcher {
+        override suspend fun fetchText(url: String): String {
             val host = url.substringAfter("://").substringBefore('/')
             delay(delays[host] ?: 0)
             if (host in failing) throw PlaybackException.Network("timed out")
@@ -120,7 +120,7 @@ class PlaylistResolverRaceTest {
     fun `candidate count is limited`() = runTest {
         val proxies = (1..10).map { ProxyEndpoint("p$it.example") }
         val requested = mutableSetOf<String>()
-        val fetcher = PlaylistFetcher { url ->
+        val fetcher = TextFetcher { url ->
             requested += url.substringAfter("://").substringBefore('/')
             throw PlaybackException.Network("down")
         }

@@ -3,7 +3,7 @@ package dev.teyd.justintv.core.adfree
 import com.google.common.truth.Truth.assertThat
 import dev.teyd.justintv.core.network.PlaybackException
 import dev.teyd.justintv.core.network.PlaybackTokenSource
-import dev.teyd.justintv.core.network.PlaylistFetcher
+import dev.teyd.justintv.core.network.TextFetcher
 import dev.teyd.justintv.core.network.model.PlaybackAccessToken
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -35,10 +35,10 @@ class PlaylistResolverTest {
     private class FakeFetcher(
         private val adsByHost: Map<String, Boolean>,
         private val offlineHosts: Set<String> = emptySet(),
-    ) : PlaylistFetcher {
+    ) : TextFetcher {
         val requested = mutableListOf<String>()
 
-        override suspend fun fetchPlaylist(url: String): String {
+        override suspend fun fetchText(url: String): String {
             requested += url
             val host = url.substringAfter("://").substringBefore('/')
             if (host in offlineHosts) throw PlaybackException.Network("connect timed out")

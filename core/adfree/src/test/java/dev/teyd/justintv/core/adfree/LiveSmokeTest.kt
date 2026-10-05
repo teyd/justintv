@@ -1,7 +1,7 @@
 package dev.teyd.justintv.core.adfree
 
 import dev.teyd.justintv.core.network.GqlClient
-import dev.teyd.justintv.core.network.OkHttpPlaylistFetcher
+import dev.teyd.justintv.core.network.OkHttpTextFetcher
 import dev.teyd.justintv.core.network.TwitchDirectoryApi
 import dev.teyd.justintv.core.network.TwitchHttpClient
 import dev.teyd.justintv.core.network.TwitchPlaybackApi
@@ -58,7 +58,7 @@ class LiveSmokeTest {
     @Test
     fun `proxy health checks finish quickly even when hosts hang`() = runBlocking {
         requireLive()
-        val checker = ProxyHealthChecker(OkHttpPlaylistFetcher(ping))
+        val checker = ProxyHealthChecker(OkHttpTextFetcher(ping))
         val started = System.nanoTime()
 
         val results = coroutineScope {
@@ -79,14 +79,14 @@ class LiveSmokeTest {
         val directory = TwitchDirectoryApi(GqlClient(base))
         val channel = directory.topStreams(emptySet()).first().login
         val api = TwitchPlaybackApi(base)
-        val resolver = PlaylistResolver(api, DefaultProxies.ALL, PlaylistVerifier(OkHttpPlaylistFetcher(probe)))
+        val resolver = PlaylistResolver(api, DefaultProxies.ALL, PlaylistVerifier(OkHttpTextFetcher(probe)))
         val started = System.nanoTime()
 
         val result = resolver.resolve(channel) { println("LIVE status: $it") }
 
         val seconds = (System.nanoTime() - started) / 1_000_000_000.0
         println("LIVE resolved '$channel' via ${result.method.label} verified=${result.verified} in %.1fs".format(seconds))
-        val master = api.fetchPlaylist(result.playlistUrl)
+        val master = api.fetchText(result.playlistUrl)
         println("LIVE master playlist: ${master.lineSequence().count()} lines, variants=${Regex("#EXT-X-STREAM-INF").findAll(master).count()}")
         check(master.startsWith("#EXTM3U")) { "not an HLS playlist" }
         check(seconds < 15.0) { "resolution took %.1fs".format(seconds) }
