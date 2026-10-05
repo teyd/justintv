@@ -34,8 +34,10 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -156,13 +158,17 @@ fun ChatList(
     }
 }
 
-/** `name: message`, with every emote drawn inline at text height. */
+/** `name: message`, with inline emotes and accessible, underlined web links. */
 @Composable
 fun ChatLine(
     message: ChatMessage,
     modifier: Modifier = Modifier,
 ) {
-    val built = remember(message) { buildChatText(message) }
+    val linkColor = MaterialTheme.colorScheme.primary
+    val built =
+        remember(message, linkColor) {
+            buildChatText(message, TextLinkStyles(style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)))
+        }
 
     androidx.compose.material3.Text(
         text = built.text,
@@ -172,12 +178,15 @@ fun ChatLine(
     )
 }
 
-private class BuiltChat(
+internal class BuiltChat(
     val text: AnnotatedString,
     val inline: Map<String, InlineTextContent>,
 )
 
-private fun buildChatText(message: ChatMessage): BuiltChat {
+internal fun buildChatText(
+    message: ChatMessage,
+    linkStyles: TextLinkStyles,
+): BuiltChat {
     val inline = HashMap<String, InlineTextContent>()
     val nameColor = parseChatColor(message.color)
     val text =
@@ -187,7 +196,7 @@ private fun buildChatText(message: ChatMessage): BuiltChat {
             message.segments.forEachIndexed { index, segment ->
                 when (segment) {
                     is ChatSegment.Text -> {
-                        append(segment.text)
+                        appendChatLinks(segment.text, linkStyles)
                     }
 
                     is ChatSegment.Emote -> {

@@ -4,6 +4,12 @@ plugins {
     id("justintv.android.hilt")
 }
 
+android {
+    defaultConfig {
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+}
+
 dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:player"))
@@ -17,4 +23,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
