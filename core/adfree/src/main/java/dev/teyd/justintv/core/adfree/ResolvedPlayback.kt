@@ -11,6 +11,14 @@ sealed interface PlaybackMethod {
     /** Played with a different player type, which Twitch sometimes serves fewer ads for. */
     data class PlayerTypeSwap(val playerType: String) : PlaybackMethod
 
+    /** Compact form for the player overlay: just the host, or what kind of fallback it is. */
+    val shortLabel: String
+        get() = when (this) {
+            Direct -> "direct"
+            is Proxied -> proxyHost
+            is PlayerTypeSwap -> "$playerType player"
+        }
+
     val label: String
         get() = when (this) {
             Direct -> "Direct"
