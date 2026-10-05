@@ -31,11 +31,14 @@ data class ChatHistorySettings(
  */
 class ChatSession(
     private val irc: TwitchIrcClient,
-    private val emotes: EmoteRepository,
+    private val emoteRepository: EmoteRepository,
     private val recent: RecentMessages,
     private val historySettings: suspend () -> ChatHistorySettings = { ChatHistorySettings() },
 ) {
     val connection = MutableStateFlow(ChatConnection())
+
+    /** Emotes for the open channel, for the picker. Empty until the room is known. */
+    val emotes = MutableStateFlow<List<Emote>>(emptyList())
 
     fun messages(login: String): Flow<ChatMessage> = channelFlow {
         val index = AtomicReference(EmoteIndex.EMPTY)
@@ -48,7 +51,7 @@ class ChatSession(
             if (!settings.enabled) return@launch
             val history = recent.fetch(login, limit = settings.limit)
             val roomId = history.firstNotNullOfOrNull { it.tags["room-id"] }
-            index.set(emotes.indexFor(roomId))
+            index.set(loadEmoteIndex(roomId))
             history.forEach { line ->
                 val message = ChatMessageParser.parse(line, index.get()) ?: return@forEach
                 if (seenIds.add(message.id)) send(message)
@@ -57,7 +60,7 @@ class ChatSession(
 
         fun loadEmotes(roomId: String?, scope: CoroutineScope) {
             emoteJob?.cancel()
-            emoteJob = scope.launch(Dispatchers.Default) { index.set(emotes.indexFor(roomId)) }
+            emoteJob = scope.launch(Dispatchers.Default) { index.set(loadEmoteIndex(roomId)) }
         }
 
         while (true) {
@@ -90,6 +93,16 @@ class ChatSession(
             attempt++
             delay(backoffMs(attempt))
         }
+    }
+
+    private suspend fun loadEmoteIndex(roomId: String?): EmoteIndex {
+        val index = emoteRepository.indexFor(roomId)
+        emotes.value = index.emotes()
+        return index
+    }
+
+    suspend fun send(channelLogin: String, nick: String, accessToken: String, text: String) {
+        irc.sendMessage(channelLogin, nick, accessToken, text)
     }
 
     internal companion object {

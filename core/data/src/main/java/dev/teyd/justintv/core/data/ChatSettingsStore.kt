@@ -20,6 +20,7 @@ class ChatSettingsStore(private val dataStore: DataStore<Preferences>) {
     private val sevenTvKey = booleanPreferencesKey("chat_7tv")
     private val bttvKey = booleanPreferencesKey("chat_bttv")
     private val ffzKey = booleanPreferencesKey("chat_ffz")
+    private val showInputKey = booleanPreferencesKey("chat_show_input")
 
     /** On by default: chat starts with the last messages instead of empty. */
     val recentMessages: Flow<Boolean> = dataStore.data.map { it[recentMessagesKey] != false }
@@ -35,6 +36,9 @@ class ChatSettingsStore(private val dataStore: DataStore<Preferences>) {
     val bttv: Flow<Boolean> = dataStore.data.map { it[bttvKey] != false }
 
     val ffz: Flow<Boolean> = dataStore.data.map { it[ffzKey] != false }
+
+    /** On by default. The box is still hidden until the viewer is signed in. */
+    val showInput: Flow<Boolean> = dataStore.data.map { it[showInputKey] != false }
 
     suspend fun setRecentMessages(enabled: Boolean) {
         dataStore.edit { it[recentMessagesKey] = enabled }
@@ -56,6 +60,10 @@ class ChatSettingsStore(private val dataStore: DataStore<Preferences>) {
 
     suspend fun setFfz(enabled: Boolean) {
         dataStore.edit { it[ffzKey] = enabled }
+    }
+
+    suspend fun setShowInput(enabled: Boolean) {
+        dataStore.edit { it[showInputKey] = enabled }
     }
 
     companion object {

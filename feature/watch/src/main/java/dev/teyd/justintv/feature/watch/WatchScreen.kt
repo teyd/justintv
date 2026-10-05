@@ -52,8 +52,12 @@ fun WatchScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    val chat = activityChat()
     BackHandler(onBack = onMinimize)
-    LaunchedEffect(channelLogin) { viewModel.open(channelLogin) }
+    LaunchedEffect(channelLogin) {
+        viewModel.open(channelLogin)
+        chat.open(channelLogin)
+    }
     Immersive(landscape)
     // The slot is black and runs under the status bar, so those icons stay light. The
     // navigation bar follows the app theme, because chat is what sits above it.
@@ -95,6 +99,13 @@ fun WatchScreen(
 
 @Composable
 fun activityPlayback(): WatchViewModel {
+    val activity = LocalContext.current.findActivity() as? ComponentActivity
+        ?: error("Watch screen must be hosted in a ComponentActivity")
+    return hiltViewModel(activity)
+}
+
+@Composable
+fun activityChat(): ChatViewModel {
     val activity = LocalContext.current.findActivity() as? ComponentActivity
         ?: error("Watch screen must be hosted in a ComponentActivity")
     return hiltViewModel(activity)

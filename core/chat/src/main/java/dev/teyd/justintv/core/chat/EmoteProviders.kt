@@ -38,7 +38,14 @@ internal data class SevenTvData(val host: SevenTvHost? = null)
 internal data class SevenTvHost(val url: String = "", val files: List<SevenTvFile> = emptyList())
 
 @Serializable
-internal data class SevenTvFile(val name: String = "", val width: Int = 0, val height: Int = 0)
+internal data class SevenTvFile(
+    val name: String = "",
+    /** The single-frame file beside an animated one, for example `2x_static.webp`. */
+    @SerialName("static_name") val staticName: String = "",
+    val width: Int = 0,
+    val height: Int = 0,
+    @SerialName("frame_count") val frameCount: Int = 1,
+)
 
 @Serializable
 internal data class SevenTvUser(@SerialName("emote_set") val emoteSet: SevenTvSet? = null)
@@ -55,12 +62,18 @@ object SevenTvParser {
         val base = if (host.url.startsWith("//")) "https:${host.url}" else host.url
         val file = host.files.firstOrNull { it.name == "2x.webp" }
             ?: host.files.firstOrNull { it.name.endsWith(".webp") }
+        // An animated emote averages about 190 KB and a still frame of it about 2 KB, so grids
+        // use the still. A static emote has no separate still; it is its own.
+        val still = file
+            ?.takeIf { it.frameCount > 1 && it.staticName.isNotBlank() && it.staticName != it.name }
+            ?.let { "$base/${it.staticName}" }
         Emote(
             name = active.name,
             url = "$base/${file?.name ?: "2x.webp"}",
             width = file?.width?.takeIf { it > 0 },
             height = file?.height?.takeIf { it > 0 },
             source = EmoteSource.SevenTv,
+            stillUrl = still,
         )
     }
 }
@@ -78,7 +91,12 @@ class SevenTvProvider(private val fetcher: TextFetcher) : EmoteProvider {
 // ---------------------------------------------------------------- BTTV
 
 @Serializable
-internal data class BttvEmote(val id: String, val code: String)
+internal data class BttvEmote(
+    val id: String,
+    val code: String,
+    /** "gif" for animated emotes; those have a much smaller static PNG beside them. */
+    val imageType: String = "",
+)
 
 @Serializable
 internal data class BttvUser(
@@ -95,11 +113,17 @@ object BttvParser {
         return (user.sharedEmotes + user.channelEmotes).map(::toEmote)
     }
 
-    private fun toEmote(emote: BttvEmote) = Emote(
-        name = emote.code,
-        url = "https://cdn.betterttv.net/emote/${emote.id}/2x.webp",
-        source = EmoteSource.Bttv,
-    )
+    private fun toEmote(emote: BttvEmote): Emote {
+        val base = "https://cdn.betterttv.net/emote/${emote.id}"
+        val animated = emote.imageType.equals("gif", ignoreCase = true)
+        return Emote(
+            name = emote.code,
+            // An animated emote can be 3 MB as webp; the static PNG next to it is a few KB.
+            url = "$base/2x.png",
+            source = EmoteSource.Bttv,
+            stillUrl = if (animated) "$base/2x.png" else null,
+        )
+    }
 }
 
 class BttvProvider(private val fetcher: TextFetcher) : EmoteProvider {

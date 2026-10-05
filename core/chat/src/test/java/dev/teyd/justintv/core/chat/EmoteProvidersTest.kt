@@ -37,6 +37,30 @@ class EmoteProvidersTest {
     }
 
     @Test
+    fun `an animated 7tv emote gets its still frame, a static one does not`() {
+        val body = """
+            {"id":"x","emotes":[
+              {"id":"anim","name":"PETPET","flags":0,
+               "data":{"id":"anim","name":"PETPET","animated":true,
+                 "host":{"url":"//cdn.7tv.app/emote/anim","files":[
+                   {"name":"2x.webp","static_name":"2x_static.webp","width":64,"height":64,"frame_count":5,"format":"WEBP"}]}}},
+              {"id":"still","name":"Static","flags":0,
+               "data":{"id":"still","name":"Static","animated":false,
+                 "host":{"url":"//cdn.7tv.app/emote/still","files":[
+                   {"name":"2x.webp","static_name":"2x.webp","width":64,"height":64,"frame_count":1,"format":"WEBP"}]}}}
+            ]}
+        """.trimIndent()
+
+        val emotes = SevenTvParser.parseSet(body).associateBy { it.name }
+
+        // Chat keeps the animation. The picker grid uses the roughly 2 KB still instead of the
+        // roughly 190 KB animated file.
+        assertThat(emotes.getValue("PETPET").url).isEqualTo("https://cdn.7tv.app/emote/anim/2x.webp")
+        assertThat(emotes.getValue("PETPET").stillUrl).isEqualTo("https://cdn.7tv.app/emote/anim/2x_static.webp")
+        assertThat(emotes.getValue("Static").stillUrl).isNull()
+    }
+
+    @Test
     fun `7tv user without an emote set yields nothing`() {
         assertThat(SevenTvParser.parseUser("""{"id":"1","username":"x"}""")).isEmpty()
         assertThat(SevenTvParser.parseUser("""{"emote_set":$sevenTvSet}""")).hasSize(1)
@@ -48,12 +72,16 @@ class EmoteProvidersTest {
             """[{"id":"54fa8f1401e468494b85b537","code":":tf:","imageType":"png","animated":false}]""",
         )
         assertThat(global.single().name).isEqualTo(":tf:")
-        assertThat(global.single().url).isEqualTo("https://cdn.betterttv.net/emote/54fa8f1401e468494b85b537/2x.webp")
+        // The PNG is a few kilobytes. The webp beside it can be animated and megabytes.
+        assertThat(global.single().url).isEqualTo("https://cdn.betterttv.net/emote/54fa8f1401e468494b85b537/2x.png")
+        assertThat(global.single().stillUrl).isNull()
 
         val channel = BttvParser.parseUser(
-            """{"channelEmotes":[{"id":"a","code":"caedJAMMER"}],"sharedEmotes":[{"id":"b","code":"Shared"}]}""",
+            """{"channelEmotes":[{"id":"a","code":"caedJAMMER","imageType":"gif"}],"sharedEmotes":[{"id":"b","code":"Shared"}]}""",
         )
         assertThat(channel.map { it.name }).containsExactly("Shared", "caedJAMMER")
+        assertThat(channel.first { it.name == "caedJAMMER" }.stillUrl)
+            .isEqualTo("https://cdn.betterttv.net/emote/a/2x.png")
     }
 
     @Test

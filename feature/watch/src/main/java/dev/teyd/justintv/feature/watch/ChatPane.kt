@@ -2,8 +2,10 @@ package dev.teyd.justintv.feature.watch
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +18,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,7 +41,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.InlineTextContent
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import dev.teyd.justintv.core.chat.ChatStatus
@@ -52,14 +55,33 @@ private const val EMOTE_HEIGHT_SP = 24
 @Composable
 fun ChatPane(
     modifier: Modifier = Modifier,
-    viewModel: ChatViewModel = hiltViewModel(),
+    viewModel: ChatViewModel = activityChat(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    ChatList(
-        messages = state.messages,
-        status = state.status,
-        modifier = modifier,
-    )
+
+    // Only worth it when the picker can be opened. Keyed on the emote list, which changes when
+    // the channel's emotes arrive or a provider is switched off, not on every chat message.
+    val context = LocalContext.current
+    val canPick = state.composer.visible
+    LaunchedEffect(canPick, state.emotes) {
+        if (!canPick || state.emotes.isEmpty()) return@LaunchedEffect
+        delay(PREFETCH_DELAY_MS)
+        prefetchEmoteThumbnails(context, state.emotes)
+    }
+
+    Column(modifier = modifier.imePadding()) {
+        ChatList(
+            messages = state.messages,
+            status = state.status,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        )
+        ChatComposer(
+            state = state.composer,
+            emotes = state.emotes,
+            onSend = viewModel::send,
+            onAllowChat = viewModel::allowChat,
+        )
+    }
 }
 
 @Composable

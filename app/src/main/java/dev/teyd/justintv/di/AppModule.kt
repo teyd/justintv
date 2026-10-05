@@ -28,7 +28,12 @@ import dev.teyd.justintv.core.data.AppearanceSettingsStore
 import dev.teyd.justintv.core.data.ChatSettingsStore
 import dev.teyd.justintv.core.data.LanguageFilterStore
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
+import dev.teyd.justintv.core.data.KeystoreTokenVault
 import dev.teyd.justintv.core.data.SessionStore
+import dev.teyd.justintv.core.network.ActiveNetworkDns
+import dev.teyd.justintv.core.network.TokenVault
+import dev.teyd.justintv.core.network.TwitchIdentityApi
+import dev.teyd.justintv.core.network.TwitchSession
 import dev.teyd.justintv.core.network.DirectorySource
 import dev.teyd.justintv.core.network.GqlClient
 import dev.teyd.justintv.core.network.OkHttpTextFetcher
@@ -40,6 +45,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 
 @Module
@@ -51,10 +57,24 @@ object AppModule {
     private const val VERIFY_CALL_TIMEOUT_SECONDS = 6L
     private const val PING_CALL_TIMEOUT_SECONDS = 4L
     private const val EMOTE_CALL_TIMEOUT_SECONDS = 10L
+    private const val MAX_REQUESTS_PER_HOST = 16
+    private const val MAX_REQUESTS = 64
 
     @Provides
     @Singleton
-    fun okHttpClient(): OkHttpClient = TwitchHttpClient.create()
+    fun okHttpClient(@ApplicationContext context: Context): OkHttpClient =
+        TwitchHttpClient.create(
+            OkHttpClient.Builder()
+                .dns(ActiveNetworkDns(context))
+                // The default allows 5 at once per host. Emote thumbnails, chat emotes and the
+                // prefetcher all come from the same few CDN hosts and would queue behind it.
+                .dispatcher(
+                    Dispatcher().apply {
+                        maxRequestsPerHost = MAX_REQUESTS_PER_HOST
+                        maxRequests = MAX_REQUESTS
+                    },
+                ),
+        )
 
     @Provides
     @Singleton
@@ -95,6 +115,19 @@ object AppModule {
     @Provides
     @Singleton
     fun sessionStore(dataStore: DataStore<Preferences>): SessionStore = SessionStore(dataStore)
+
+    @Provides
+    @Singleton
+    fun tokenVault(@ApplicationContext context: Context): TokenVault = KeystoreTokenVault(context)
+
+    @Provides
+    @Singleton
+    fun twitchSession(httpClient: OkHttpClient, vault: TokenVault): TwitchSession =
+        TwitchSession(
+            api = TwitchIdentityApi(httpClient),
+            vault = vault,
+            clientId = dev.teyd.justintv.TwitchConfig.clientId,
+        )
 
     @Provides
     @Singleton
@@ -160,7 +193,7 @@ object AppModule {
         chatSettings: ChatSettingsStore,
     ): ChatSession = ChatSession(
         irc = irc,
-        emotes = emotes,
+        emoteRepository = emotes,
         recent = RecentMessages(httpClient),
         historySettings = {
             ChatHistorySettings(

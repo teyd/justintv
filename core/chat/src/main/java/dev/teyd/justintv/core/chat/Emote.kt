@@ -15,6 +15,11 @@ data class Emote(
     val width: Int? = null,
     val height: Int? = null,
     val source: EmoteSource,
+    /**
+     * A single-frame version of [url], for grids and pickers. Animated files can be megabytes
+     * each; a static frame is a few kilobytes. Null when only the animated file exists.
+     */
+    val stillUrl: String? = null,
 ) {
     val aspectRatio: Float
         get() = if (width != null && height != null && width > 0 && height > 0) {
@@ -36,6 +41,8 @@ class EmoteIndex private constructor(private val byName: Map<String, Emote>) {
     operator fun get(name: String): Emote? = byName[name]
 
     val size: Int get() = byName.size
+
+    fun emotes(): List<Emote> = byName.values.toList()
 
     class Builder {
         private val map = HashMap<String, Emote>()
