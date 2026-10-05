@@ -13,9 +13,10 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // Set in .env and loaded with `varlock run -- ./gradlew ...`. Empty until login is wired.
-        val twitchClientId = System.getenv("TWITCH_CLIENT_ID").orEmpty()
-        buildConfigField("String", "TWITCH_CLIENT_ID", "\"$twitchClientId\"")
+        // Prefer the process env (varlock). Fall back to .env.local so installDebug without
+        // varlock still bakes the same client id. A blank id makes Helix 401 and used to wipe login.
+        val twitchClientId = twitchClientId()
+        buildConfigField("String", "TWITCH_CLIENT_ID", twitchClientId.asJavaStringLiteral())
     }
 
     buildFeatures {
@@ -80,3 +81,36 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
+
+/** Process env first, then `.env.local` / `.env`, so a plain `installDebug` keeps the same client id. */
+fun twitchClientId(): String {
+    System.getenv("TWITCH_CLIENT_ID")?.takeIf { it.isNotBlank() }?.let { return it.trim() }
+    val root = rootProject.projectDir
+    for (name in listOf(".env.local", ".env")) {
+        val file = root.resolve(name)
+        if (!file.isFile) continue
+        for (line in file.readLines()) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#") || "=" !in trimmed) continue
+            val key = trimmed.substringBefore("=").trim()
+            if (key == "TWITCH_CLIENT_ID") {
+                return trimmed.substringAfter("=").trim().trim('"', '\'')
+            }
+        }
+    }
+    return ""
+}
+
+private fun String.asJavaStringLiteral(): String =
+    buildString {
+        append('"')
+        for (ch in this@asJavaStringLiteral) {
+            when (ch) {
+                '\\' -> append("\\\\")
+                '"' -> append("\\\"")
+                '\n', '\r' -> Unit
+                else -> append(ch)
+            }
+        }
+        append('"')
+    }

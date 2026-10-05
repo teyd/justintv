@@ -16,3 +16,16 @@ class HomeTabsTest {
             .inOrder()
     }
 }
+
+class LanguageFilterLabelTest {
+    @Test
+    fun `an empty selection is not a count`() {
+        assertThat(languageFilterLabel(emptySet())).isEqualTo("Languages")
+    }
+
+    @Test
+    fun `one language uses its name, several use a count`() {
+        assertThat(languageFilterLabel(setOf("DE"))).isEqualTo("Deutsch")
+        assertThat(languageFilterLabel(setOf("EN", "DE"))).isEqualTo("2 languages")
+    }
+}

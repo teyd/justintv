@@ -14,13 +14,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -30,12 +27,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,9 +41,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -53,12 +51,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.size.Precision
 import dev.teyd.justintv.core.chat.Emote
 import dev.teyd.justintv.core.chat.EmoteSource
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** Display order. The enum's own order is lookup priority, not what people expect to see. */
-internal val PickerSourceOrder = listOf(EmoteSource.SevenTv, EmoteSource.Bttv, EmoteSource.Ffz)
+internal val PickerSourceOrder =
+    listOf(EmoteSource.Twitch, EmoteSource.SevenTv, EmoteSource.Bttv, EmoteSource.Ffz)
 
 /** One provider's emotes, alphabetical. */
 internal data class EmoteSection(
@@ -75,14 +76,14 @@ internal fun sectionsOf(emotes: List<Emote>): List<EmoteSection> {
     }
 }
 
-/** Where each section's header sits in the All grid, where a section is a header and its emotes. */
+/** Where each section's header sits in the grid. A section is a header and its emotes. */
 internal fun headerIndices(sections: List<EmoteSection>): List<Int> {
     var next = 0
     return sections.map { section -> next.also { next += 1 + section.emotes.size } }
 }
 
 /**
- * Which section the All grid is showing at the top. Null right at the very top, which is the
+ * Which section the grid is showing at the top. Null right at the very top, which is the
  * All tab itself; the first scroll puts the first provider's tab under the highlight.
  */
 internal fun sectionAtTop(
@@ -96,18 +97,21 @@ internal fun sectionAtTop(
 
 internal fun EmoteSource.pickerLabel(): String =
     when (this) {
+        EmoteSource.Twitch -> "Twitch"
         EmoteSource.SevenTv -> "7TV"
         EmoteSource.Bttv -> "BTTV"
         EmoteSource.Ffz -> "FFZ"
     }
 
+internal fun emoteKey(emote: Emote): String = "${emote.source}:${emote.name}"
+
 /**
  * The emote sheet.
  *
- * Tabs are All plus each provider that actually has emotes, so a provider switched off in
- * settings has no tab. Pages swipe. The All page is one grid with a header per provider, and
- * the tab bar follows whichever header is at the top as you scroll; tapping a tab there jumps
- * to that section. On a provider's own page, tapping a tab changes page.
+ * One grid, not a pager of grids. A pager composed a second lazy grid and nested a horizontal
+ * scroller inside the sheet, which is what made a fling hitch. Tabs jump to a section. The tab
+ * row is the only composable that reads the scroll position, so the grid can skip while the
+ * highlight moves.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,17 +127,33 @@ internal fun EmotePicker(
         remember(emotes) {
             listOf<EmoteSource?>(null) + PickerSourceOrder.filter { source -> emotes.any { it.source == source } }
         }
-    val pager = rememberPagerState(pageCount = { tabs.size })
-    val allGrid = rememberLazyGridState()
+    val grid = rememberLazyGridState()
     val scope = rememberCoroutineScope()
     val headers = remember(sections) { headerIndices(sections) }
-    val spySection by remember(headers) {
-        derivedStateOf {
-            sectionAtTop(headers, allGrid.firstVisibleItemIndex, allGrid.firstVisibleItemScrollOffset)
+    val context = LocalContext.current
+
+    LaunchedEffect(sections) {
+        val ordered = sections.flatMap { it.emotes }
+        if (ordered.isEmpty()) return@LaunchedEffect
+        var queued = 0
+        var warming: Job? = null
+        snapshotFlow {
+            val last =
+                grid.layoutInfo.visibleItemsInfo
+                    .lastOrNull()
+                    ?.index ?: 0
+            (last - sections.size).coerceAtLeast(0)
+        }.collect { last ->
+            val range = prefetchRange(queued, last, ordered.size)
+            if (range.isEmpty()) return@collect
+            // A fling left the in-flight window behind. Drop it instead of decoding images
+            // that have already gone past.
+            if (range.first > queued) warming?.cancel()
+            queued = range.last + 1
+            val slice = ordered.subList(range.first, range.last + 1)
+            warming = launch { prefetchEmoteThumbnails(context, slice) }
         }
     }
-    val spySource = spySection?.let { sections.getOrNull(it)?.source }
-    val selectedTab = if (pager.currentPage == 0) tabs.indexOf(spySource).coerceAtLeast(0) else pager.currentPage
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -159,45 +179,58 @@ internal fun EmotePicker(
                 return@Column
             }
 
-            PrimaryTabRow(selectedTabIndex = selectedTab) {
-                tabs.forEachIndexed { index, source ->
-                    Tab(
-                        selected = index == selectedTab,
-                        onClick = {
-                            scope.launch {
-                                if (pager.currentPage == 0) {
-                                    val section = sections.indexOfFirst { it.source == source }
-                                    when {
-                                        source == null -> allGrid.animateScrollToItem(0)
-                                        section >= 0 -> allGrid.animateScrollToItem(headers[section])
-                                    }
-                                } else {
-                                    pager.animateScrollToPage(index)
-                                }
-                            }
-                        },
-                        text = { Text(source?.pickerLabel() ?: "All") },
-                    )
-                }
-            }
-
-            HorizontalPager(
-                state = pager,
-                modifier = Modifier.fillMaxWidth().weight(1f),
-            ) { page ->
-                val source = tabs.getOrNull(page)
-                // Remembered: a fresh list on every recomposition would stop the grid skipping.
-                val pageSections =
-                    remember(sections, source) {
-                        if (source == null) sections else sections.filter { it.source == source }
+            SectionTabs(
+                tabs = tabs,
+                sections = sections,
+                headers = headers,
+                grid = grid,
+                onSelect = { source ->
+                    scope.launch {
+                        val section = sections.indexOfFirst { it.source == source }
+                        when {
+                            source == null -> grid.scrollToItem(0)
+                            section >= 0 -> grid.scrollToItem(headers[section])
+                        }
                     }
-                EmoteGrid(
-                    sections = pageSections,
-                    showHeaders = source == null,
-                    state = if (source == null) allGrid else rememberLazyGridState(),
-                    onPick = onPick,
-                )
-            }
+                },
+            )
+
+            EmoteGrid(
+                sections = sections,
+                state = grid,
+                onPick = onPick,
+            )
+        }
+    }
+}
+
+/**
+ * Reads the grid's scroll position itself. If the parent read it, every section change would
+ * restart the grid.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SectionTabs(
+    tabs: List<EmoteSource?>,
+    sections: List<EmoteSection>,
+    headers: List<Int>,
+    grid: LazyGridState,
+    onSelect: (EmoteSource?) -> Unit,
+) {
+    val selected by remember(headers, sections, tabs, grid) {
+        derivedStateOf {
+            val section = sectionAtTop(headers, grid.firstVisibleItemIndex, grid.firstVisibleItemScrollOffset)
+            val source = section?.let { sections.getOrNull(it)?.source }
+            tabs.indexOf(source).coerceAtLeast(0)
+        }
+    }
+    PrimaryScrollableTabRow(selectedTabIndex = selected) {
+        tabs.forEachIndexed { index, source ->
+            Tab(
+                selected = index == selected,
+                onClick = { onSelect(source) },
+                text = { Text(source?.pickerLabel() ?: "All") },
+            )
         }
     }
 }
@@ -253,7 +286,6 @@ private fun SearchField(
 @Composable
 private fun EmoteGrid(
     sections: List<EmoteSection>,
-    showHeaders: Boolean,
     state: LazyGridState,
     onPick: (String) -> Unit,
 ) {
@@ -276,25 +308,22 @@ private fun EmoteGrid(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         sections.forEach { section ->
-            if (showHeaders) {
-                item(
-                    key = "header-${section.source}",
-                    span = { GridItemSpan(maxLineSpan) },
-                    contentType = "header",
-                ) {
-                    Text(
-                        text = "${section.source.pickerLabel()} · ${section.emotes.size}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 4.dp),
-                    )
-                }
+            stickyHeader(
+                key = "header-${section.source}",
+                contentType = "header",
+            ) {
+                Text(
+                    text = "${section.source.pickerLabel()} · ${section.emotes.size}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 4.dp),
+                )
             }
             items(
                 section.emotes,
-                // Names are unique across the whole index, so the name alone is a stable key,
-                // and it does not build a new string for every cell on every scroll.
-                key = { it.name },
+                // Names collide across providers. The source keeps the key unique without
+                // allocating on every scroll frame: the string is the item key, built once.
+                key = { emoteKey(it) },
                 contentType = { "emote" },
             ) { emote ->
                 EmoteCell(emote = emote, onPick = onPick)
@@ -318,6 +347,7 @@ internal fun thumbnailRequest(
         .Builder(context)
         .data(emote.stillUrl ?: emote.url)
         .size(THUMBNAIL_PX, THUMBNAIL_PX)
+        .precision(Precision.INEXACT)
         .build()
 
 @Composable

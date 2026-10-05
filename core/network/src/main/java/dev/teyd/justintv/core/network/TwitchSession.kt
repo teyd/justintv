@@ -64,7 +64,7 @@ class TwitchSession(
         pollJob =
             scope.launch {
                 if (clientId.isBlank()) {
-                    _state.value = AuthState.Failed("This build has no Twitch client ID.")
+                    restoreDisplayedAccount("This build has no Twitch client ID.")
                     return@launch
                 }
                 try {
@@ -84,7 +84,7 @@ class TwitchSession(
                             }
 
                             is DevicePoll.Rejected -> {
-                                _state.value = AuthState.Failed(poll.message)
+                                restoreDisplayedAccount(poll.message)
                                 return@launch
                             }
 
@@ -94,11 +94,11 @@ class TwitchSession(
                             }
                         }
                     }
-                    _state.value = AuthState.Failed("That code expired. Try again.")
+                    restoreDisplayedAccount("That code expired. Try again.")
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    _state.value = AuthState.Failed(signInFailure(e))
+                    restoreDisplayedAccount(signInFailure(e))
                 }
             }
     }
@@ -151,15 +151,33 @@ class TwitchSession(
         val saved = vault.load() ?: return
         stored = saved
         _state.value = loggedIn(saved.userId, saved.login, saved.displayName, saved.scopes)
+        // A build with no client id cannot talk to Helix. Wiping the saved account here is how
+        // an installDebug without the env var used to force a re-login.
+        if (clientId.isBlank()) return
         try {
             freshAccessToken()
             val user = api.currentUser(clientId, stored?.accessToken ?: return)
             saveUser(user, stored?.refreshToken.orEmpty(), stored?.expiresAtEpochMs ?: 0L)
         } catch (_: UnauthorizedException) {
-            if (refreshLocked() == null) drop()
+            // refreshLocked deletes the session only when Twitch rejects the refresh token.
+            refreshLocked()
         } catch (_: Exception) {
             // Keep the saved account on a network miss. The next Helix call can refresh.
         }
+    }
+
+    /**
+     * A failed re-consent must not look like a logout. The vault still holds the previous
+     * grant until a new one is saved.
+     */
+    private fun restoreDisplayedAccount(message: String) {
+        val saved = stored
+        _state.value =
+            if (saved != null) {
+                loggedIn(saved.userId, saved.login, saved.displayName, saved.scopes)
+            } else {
+                AuthState.Failed(message)
+            }
     }
 
     private suspend fun finish(grant: TokenGrant) {
@@ -204,6 +222,7 @@ class TwitchSession(
 
     private suspend fun freshAccessToken(): String? {
         val current = stored ?: vault.load()?.also { stored = it } ?: return null
+        if (clientId.isBlank()) return current.accessToken
         if (current.expiresAtEpochMs - System.currentTimeMillis() > REFRESH_EARLY_MS) {
             return current.accessToken
         }
@@ -213,9 +232,12 @@ class TwitchSession(
     private suspend fun refreshLocked(): String? =
         refreshLock.withLock {
             val current = stored ?: return null
-            if (current.refreshToken.isBlank()) {
-                drop()
-                return null
+            if (current.expiresAtEpochMs - System.currentTimeMillis() > REFRESH_EARLY_MS) {
+                return current.accessToken
+            }
+            if (clientId.isBlank() || current.refreshToken.isBlank()) {
+                if (current.refreshToken.isBlank()) drop()
+                return current.accessToken.takeIf { current.refreshToken.isNotBlank() }
             }
             try {
                 val grant = api.refresh(clientId, current.refreshToken)
@@ -234,9 +256,14 @@ class TwitchSession(
                 updated.accessToken
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (_: UnauthorizedException) {
                 drop()
                 null
+            } catch (_: Exception) {
+                // A blip, a 5xx, or a build whose client id Twitch does not recognise. The
+                // refresh token may still be good. Deleting it here is what forced a re-login
+                // after every install.
+                current.accessToken.takeIf { current.expiresAtEpochMs > System.currentTimeMillis() }
             }
         }
 

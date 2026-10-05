@@ -109,9 +109,25 @@ class TwitchIdentityApi(
             )
         val response = post(TOKEN_URL, body)
         if (response.code != 200) {
+            if (isRejectedRefresh(response.code, response.body)) throw UnauthorizedException()
             throw IdentityException(errorMessage(response.body) ?: "Could not refresh the sign-in")
         }
         return json.decodeFromString<TokenBody>(response.body).toGrant()
+    }
+
+    /** Helix GET with the signed-in user's token. 401 throws [UnauthorizedException]. */
+    suspend fun authorizedGet(
+        url: String,
+        clientId: String,
+        accessToken: String,
+    ): String {
+        val response = get(url, bearer = accessToken, clientId = clientId, oauthPrefix = "Bearer")
+        if (response.code == 401) throw UnauthorizedException()
+        if (response.code != 200) {
+            throw IdentityException(errorMessage(response.body) ?: "Could not load emotes")
+        }
+        if (response.body.isBlank()) throw IdentityException("empty response")
+        return response.body
     }
 
     /** Null when the token is rejected. Other failures throw. */
@@ -247,6 +263,20 @@ class TwitchIdentityApi(
         private const val MAX_USER_IDS = 100
 
         private val json = Json { ignoreUnknownKeys = true }
+
+        /**
+         * True only when Twitch says the refresh token itself is dead. A missing client id, a
+         * 5xx, or a transport error is not this: those must not sign the user out.
+         */
+        fun isRejectedRefresh(
+            code: Int,
+            body: String,
+        ): Boolean {
+            if (code == 401) return true
+            if (code != 400) return false
+            val text = body.lowercase()
+            return "invalid refresh token" in text || "invalid_grant" in text
+        }
 
         fun parseDevicePoll(
             code: Int,

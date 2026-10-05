@@ -1,13 +1,13 @@
 package dev.teyd.justintv.core.chat
 
 /** Where an emote comes from. Declaration order is lookup priority, lowest first. */
-enum class EmoteSource { Bttv, Ffz, SevenTv }
+enum class EmoteSource { Twitch, Bttv, Ffz, SevenTv }
 
 /**
- * A third-party emote that is matched by name inside message text.
+ * An emote the picker can insert, and that chat can match by name.
  *
- * Twitch's own emotes are different: they arrive as character ranges in a message tag and are
- * not looked up by name.
+ * Twitch's own emotes also arrive as character ranges in a message tag. Those ranges win when
+ * drawing a line. The name is what the picker inserts.
  */
 data class Emote(
     val name: String,
@@ -36,9 +36,15 @@ data class Emote(
     }
 }
 
-/** A name to emote lookup. Later entries win, so callers add global sets before channel sets. */
+/**
+ * A name to emote lookup. Later entries win, so callers add global sets before channel sets.
+ *
+ * [picker] keeps one emote per source and name. The lookup map does not: a 7TV Kappa hides
+ * the Twitch Kappa when a line is matched by name, but the picker still shows both.
+ */
 class EmoteIndex private constructor(
     private val byName: Map<String, Emote>,
+    val picker: List<Emote>,
 ) {
     operator fun get(name: String): Emote? = byName[name]
 
@@ -48,16 +54,20 @@ class EmoteIndex private constructor(
 
     class Builder {
         private val map = HashMap<String, Emote>()
+        private val picker = LinkedHashMap<Pair<EmoteSource, String>, Emote>()
 
         fun addAll(emotes: Collection<Emote>): Builder {
-            emotes.forEach { map[it.name] = it }
+            emotes.forEach {
+                map[it.name] = it
+                picker[it.source to it.name] = it
+            }
             return this
         }
 
-        fun build(): EmoteIndex = EmoteIndex(map.toMap())
+        fun build(): EmoteIndex = EmoteIndex(map.toMap(), picker.values.toList())
     }
 
     companion object {
-        val EMPTY = EmoteIndex(emptyMap())
+        val EMPTY = EmoteIndex(emptyMap(), emptyList())
     }
 }

@@ -66,7 +66,8 @@ fun homeTabs(isLoggedIn: Boolean): List<HomeTab> =
  * The front page.
  *
  * Swipe between tabs or tap them: what is live now, categories to browse, and, when logged
- * in, the channels you follow. The language filter applies to the live and category lists.
+ * in, the channels you follow. The language chip sits on the live list, which is the only
+ * tab it filters.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -138,7 +139,6 @@ fun HomeScreen(
                         IconButton(onClick = { searchOpen = true }) {
                             Icon(Icons.Filled.Search, contentDescription = "Search")
                         }
-                        LanguageFilterAction(selected = state.languages, onChange = viewModel::setLanguages)
                         IconButton(onClick = onOpenSettings) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
                         }
@@ -198,16 +198,24 @@ fun HomeScreen(
                         }
 
                         HomeTab.Live -> {
-                            StreamList(
-                                state = state.live,
-                                emptyText = "Nobody is live for this filter",
-                                onRefresh = viewModel::refreshLive,
-                                onWatch = onWatch,
-                                contentPadding =
-                                    PaddingValues(
-                                        bottom = padding.calculateBottomPadding() + extraBottomPadding,
-                                    ),
-                            )
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                LanguageFilterAction(
+                                    selected = state.languages,
+                                    onChange = viewModel::setLanguages,
+                                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 4.dp),
+                                )
+                                StreamList(
+                                    state = state.live,
+                                    emptyText = "Nobody is live for this filter",
+                                    onRefresh = viewModel::refreshLive,
+                                    onWatch = onWatch,
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding =
+                                        PaddingValues(
+                                            bottom = padding.calculateBottomPadding() + extraBottomPadding,
+                                        ),
+                                )
+                            }
                         }
 
                         HomeTab.Categories -> {

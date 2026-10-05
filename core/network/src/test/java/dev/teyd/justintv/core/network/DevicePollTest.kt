@@ -24,6 +24,15 @@ class DevicePollTest {
     }
 
     @Test
+    fun `a dead refresh token is the only refresh failure that signs the user out`() {
+        assertThat(TwitchIdentityApi.isRejectedRefresh(400, """{"message":"Invalid refresh token"}""")).isTrue()
+        assertThat(TwitchIdentityApi.isRejectedRefresh(400, """{"error":"invalid_grant"}""")).isTrue()
+        assertThat(TwitchIdentityApi.isRejectedRefresh(401, """{"message":"invalid token"}""")).isTrue()
+        assertThat(TwitchIdentityApi.isRejectedRefresh(400, """{"message":"parameter client_id is required"}""")).isFalse()
+        assertThat(TwitchIdentityApi.isRejectedRefresh(500, """{"message":"Invalid refresh token"}""")).isFalse()
+    }
+
+    @Test
     fun `slow down is not a failure`() {
         val poll = TwitchIdentityApi.parseDevicePoll(400, """{"message":"slow_down"}""")
         assertThat(poll).isEqualTo(DevicePoll.SlowDown)

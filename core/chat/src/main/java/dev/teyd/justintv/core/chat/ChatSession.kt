@@ -1,7 +1,6 @@
 package dev.teyd.justintv.core.chat
 
 import dev.teyd.justintv.core.model.ChatMessage
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -42,68 +41,83 @@ class ChatSession(
     /** Emotes for the open channel, for the picker. Empty until the room is known. */
     val emotes = MutableStateFlow<List<Emote>>(emptyList())
 
+    private val reloadEmotes = AtomicReference<(() -> Unit)?>(null)
+
+    /** Loads again, for example once a token exists so Twitch emotes can be fetched. */
+    fun refreshEmotes() {
+        reloadEmotes.get()?.invoke()
+    }
+
     fun messages(login: String): Flow<ChatMessage> =
         channelFlow {
             val index = AtomicReference(EmoteIndex.EMPTY)
             val seenIds = Collections.synchronizedSet(HashSet<String>())
+            val roomId = AtomicReference<String?>(null)
             var emoteJob: Job? = null
             var attempt = 0
+
+            fun loadEmotes(id: String?) {
+                if (id != null) roomId.set(id)
+                emoteJob?.cancel()
+                emoteJob = launch(Dispatchers.Default) { index.set(loadEmoteIndex(roomId.get())) }
+            }
+
+            val refresh = { loadEmotes(roomId.get()) }
+            reloadEmotes.set(refresh)
 
             launch {
                 val settings = historySettings()
                 if (!settings.enabled) return@launch
                 val history = recent.fetch(login, limit = settings.limit)
-                val roomId = history.firstNotNullOfOrNull { it.tags["room-id"] }
-                index.set(loadEmoteIndex(roomId))
+                val id = history.firstNotNullOfOrNull { it.tags["room-id"] }
+                if (id != null) roomId.set(id)
+                // Synchronous: these lines are parsed with the index, so it has to exist first.
+                index.set(loadEmoteIndex(roomId.get()))
                 history.forEach { line ->
                     val message = ChatMessageParser.parse(line, index.get()) ?: return@forEach
                     if (seenIds.add(message.id)) send(message)
                 }
             }
 
-            fun loadEmotes(
-                roomId: String?,
-                scope: CoroutineScope,
-            ) {
-                emoteJob?.cancel()
-                emoteJob = scope.launch(Dispatchers.Default) { index.set(loadEmoteIndex(roomId)) }
-            }
+            try {
+                while (true) {
+                    connection.update { it.copy(status = if (attempt == 0) ChatStatus.Connecting else ChatStatus.Reconnecting) }
+                    try {
+                        irc.events(login).collect { event ->
+                            when (event) {
+                                IrcEvent.Connected -> {
+                                    attempt = 0
+                                    connection.update { it.copy(status = ChatStatus.Connected) }
+                                }
 
-            while (true) {
-                connection.update { it.copy(status = if (attempt == 0) ChatStatus.Connecting else ChatStatus.Reconnecting) }
-                try {
-                    irc.events(login).collect { event ->
-                        when (event) {
-                            IrcEvent.Connected -> {
-                                attempt = 0
-                                connection.update { it.copy(status = ChatStatus.Connected) }
-                            }
-
-                            is IrcEvent.Line -> {
-                                val message = event.message
-                                if (message.command == "ROOMSTATE") {
-                                    message.tags["room-id"]?.let { loadEmotes(it, this@channelFlow) }
-                                } else {
-                                    val parsed = ChatMessageParser.parse(message, index.get()) ?: return@collect
-                                    if (seenIds.add(parsed.id)) send(parsed)
+                                is IrcEvent.Line -> {
+                                    val message = event.message
+                                    if (message.command == "ROOMSTATE") {
+                                        message.tags["room-id"]?.let { loadEmotes(it) }
+                                    } else {
+                                        val parsed = ChatMessageParser.parse(message, index.get()) ?: return@collect
+                                        if (seenIds.add(parsed.id)) send(parsed)
+                                    }
                                 }
                             }
                         }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Fall through to the backoff below.
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    // Fall through to the backoff below.
+                    connection.update { it.copy(status = ChatStatus.Reconnecting) }
+                    attempt++
+                    delay(backoffMs(attempt))
                 }
-                connection.update { it.copy(status = ChatStatus.Reconnecting) }
-                attempt++
-                delay(backoffMs(attempt))
+            } finally {
+                reloadEmotes.compareAndSet(refresh, null)
             }
         }
 
     private suspend fun loadEmoteIndex(roomId: String?): EmoteIndex {
         val index = emoteRepository.indexFor(roomId)
-        emotes.value = index.emotes()
+        emotes.value = index.picker
         return index
     }
 

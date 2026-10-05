@@ -2,6 +2,7 @@ package dev.teyd.justintv.core.data
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import dev.teyd.justintv.core.network.SessionCodec
 import dev.teyd.justintv.core.network.StoredSession
@@ -10,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.KeyStore
+import java.security.UnrecoverableKeyException
+import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -55,20 +58,26 @@ class KeystoreTokenVault(
             if (payload.isEmpty()) return null
             val ivLength = payload[0].toInt() and 0xFF
             if (payload.size <= 1 + ivLength) return null
+            val key = existingKey() ?: return null.also { file.delete() }
             val iv = payload.copyOfRange(1, 1 + ivLength)
             val cipherText = payload.copyOfRange(1 + ivLength, payload.size)
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, iv))
+            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
             String(cipher.doFinal(cipherText), Charsets.UTF_8)
-        } catch (_: Exception) {
-            file.delete()
+        } catch (e: Exception) {
+            // A keystore that is briefly unavailable must not destroy the only copy of the
+            // tokens. Delete only when the ciphertext cannot match this key.
+            if (isPermanentCryptoFailure(e)) file.delete()
             null
         }
 
-    private fun secretKey(): SecretKey {
+    private fun existingKey(): SecretKey? {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        val existing = keyStore.getKey(KEY_ALIAS, null) as? SecretKey
-        if (existing != null) return existing
+        return keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+    }
+
+    private fun secretKey(): SecretKey {
+        existingKey()?.let { return it }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
         generator.init(
             KeyGenParameterSpec
@@ -79,6 +88,20 @@ class KeystoreTokenVault(
                 .build(),
         )
         return generator.generateKey()
+    }
+
+    private fun isPermanentCryptoFailure(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            if (current is UnrecoverableKeyException ||
+                current is KeyPermanentlyInvalidatedException ||
+                current is BadPaddingException
+            ) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
     }
 
     private companion object {

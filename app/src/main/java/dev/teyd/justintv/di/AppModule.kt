@@ -22,6 +22,7 @@ import dev.teyd.justintv.core.chat.EmoteSource
 import dev.teyd.justintv.core.chat.FfzProvider
 import dev.teyd.justintv.core.chat.RecentMessages
 import dev.teyd.justintv.core.chat.SevenTvProvider
+import dev.teyd.justintv.core.chat.TwitchEmoteProvider
 import dev.teyd.justintv.core.chat.TwitchIrcClient
 import dev.teyd.justintv.core.data.AdBlockSettingsStore
 import dev.teyd.justintv.core.data.AppearanceSettingsStore
@@ -174,13 +175,27 @@ object AppModule {
     fun emoteRepository(
         httpClient: OkHttpClient,
         chatSettings: ChatSettingsStore,
+        session: TwitchSession,
     ): EmoteRepository {
-        val fetcher = OkHttpTextFetcher(probeClient(httpClient, EMOTE_CALL_TIMEOUT_SECONDS))
+        val probe = probeClient(httpClient, EMOTE_CALL_TIMEOUT_SECONDS)
+        val fetcher = OkHttpTextFetcher(probe)
+        val helix = TwitchIdentityApi(probe)
         return EmoteRepository(
-            providers = listOf(SevenTvProvider(fetcher), BttvProvider(fetcher), FfzProvider(fetcher)),
+            providers =
+                listOf(
+                    TwitchEmoteProvider(
+                        clientId = dev.teyd.justintv.TwitchConfig.clientId,
+                        token = session::accessToken,
+                        fetch = helix::authorizedGet,
+                    ),
+                    SevenTvProvider(fetcher),
+                    BttvProvider(fetcher),
+                    FfzProvider(fetcher),
+                ),
             enabledSources =
                 combine(chatSettings.sevenTv, chatSettings.bttv, chatSettings.ffz) { seven, bttv, ffz ->
                     buildSet {
+                        add(EmoteSource.Twitch)
                         if (seven) add(EmoteSource.SevenTv)
                         if (bttv) add(EmoteSource.Bttv)
                         if (ffz) add(EmoteSource.Ffz)

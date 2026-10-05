@@ -30,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -45,7 +44,6 @@ import coil3.compose.AsyncImage
 import dev.teyd.justintv.core.chat.ChatStatus
 import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.model.ChatSegment
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val TEXT_SIZE_SP = 14
@@ -58,16 +56,6 @@ fun ChatPane(
     viewModel: ChatViewModel = activityChat(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-
-    // Only worth it when the picker can be opened. Keyed on the emote list, which changes when
-    // the channel's emotes arrive or a provider is switched off, not on every chat message.
-    val context = LocalContext.current
-    val canPick = state.composer.visible
-    LaunchedEffect(canPick, state.emotes) {
-        if (!canPick || state.emotes.isEmpty()) return@LaunchedEffect
-        delay(PREFETCH_DELAY_MS)
-        prefetchEmoteThumbnails(context, state.emotes)
-    }
 
     Column(modifier = modifier.imePadding()) {
         ChatList(

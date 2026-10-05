@@ -121,6 +121,28 @@ class EmoteProvidersTest {
         assertThat(Emote("a", "u", 10, 1000, EmoteSource.Bttv).aspectRatio).isEqualTo(0.5f)
     }
 
+    @Test
+    fun `twitch emotes use a static frame for the grid and the chat url for the line`() {
+        val body =
+            """
+            {"data":[
+              {"id":"25","name":"Kappa","format":["static"]},
+              {"id":"emotesv2_x","name":"","format":["static"]},
+              {"id":"304456832","name":"twitchdevPitchfork","format":["static","animated"]}
+            ],"template":"https://static-cdn.jtvnw.net/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}"}
+            """.trimIndent()
+
+        val emotes = TwitchEmoteParser.parse(body).associateBy { it.name }
+
+        assertThat(emotes.keys).containsExactly("Kappa", "twitchdevPitchfork")
+        assertThat(emotes.getValue("Kappa").stillUrl).isEqualTo(TwitchEmoteParser.stillUrl("25"))
+        assertThat(emotes.getValue("Kappa").url).isEqualTo(TwitchEmoteParser.chatUrl("25"))
+        assertThat(emotes.getValue("Kappa").source).isEqualTo(EmoteSource.Twitch)
+        // The grid must not decode the animated GIF. Chat can.
+        assertThat(emotes.getValue("twitchdevPitchfork").stillUrl).contains("/static/")
+        assertThat(emotes.getValue("twitchdevPitchfork").url).contains("/default/")
+    }
+
     // ------------------------------------------------------------ repository
 
     private class FakeProvider(
@@ -167,6 +189,18 @@ class EmoteProvidersTest {
 
             assertThat(index["Same"]!!.source).isEqualTo(EmoteSource.SevenTv)
             assertThat(index["Chan"]!!.source).isEqualTo(EmoteSource.SevenTv)
+        }
+
+    @Test
+    fun `the picker keeps a twitch emote when a third party uses the same name`() =
+        runTest {
+            val twitch = FakeProvider(global = listOf(emote("Kappa", EmoteSource.Twitch)), source = EmoteSource.Twitch)
+            val seven = FakeProvider(global = listOf(emote("Kappa", EmoteSource.SevenTv)), source = EmoteSource.SevenTv)
+
+            val index = EmoteRepository(listOf(twitch, seven)).indexFor(null)
+
+            assertThat(index["Kappa"]!!.source).isEqualTo(EmoteSource.SevenTv)
+            assertThat(index.picker.map { it.source }).containsExactly(EmoteSource.Twitch, EmoteSource.SevenTv)
         }
 
     @Test

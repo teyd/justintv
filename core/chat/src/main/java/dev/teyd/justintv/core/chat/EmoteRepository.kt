@@ -17,8 +17,8 @@ import kotlin.coroutines.cancellation.CancellationException
  * chat from working. Global sets are cached per process, keyed by which providers are enabled,
  * so toggling 7TV/BTTV/FFZ in settings takes effect on the next chat without a stale cache.
  *
- * Priority, lowest first: BTTV, FFZ, 7TV, with channel sets above global ones. If two emotes
- * share a name, the higher one wins.
+ * Priority, lowest first: Twitch, BTTV, FFZ, 7TV, with channel sets above global ones. If two
+ * emotes share a name, the higher one wins in the lookup. The picker still lists each source.
  */
 class EmoteRepository(
     private val providers: List<EmoteProvider>,
@@ -26,7 +26,7 @@ class EmoteRepository(
     private val enabledSources: Flow<Set<EmoteSource>> = flowOf(EmoteSource.entries.toSet()),
 ) {
     private val globalLock = Mutex()
-    private var globalCache: Pair<Set<EmoteSource>, List<Emote>>? = null
+    private val globalBySource = HashMap<EmoteSource, List<Emote>>()
 
     suspend fun indexFor(roomId: String?): EmoteIndex =
         coroutineScope {
@@ -46,15 +46,41 @@ class EmoteRepository(
         return providers.filter { it.source in allowed }
     }
 
+    /**
+     * Cached per provider, and only when that provider returned something. An empty Twitch set
+     * (not signed in yet) must not stick, or the next channel open would skip Kappa forever.
+     * A provider that stays enabled is not downloaded again just because another was toggled.
+     */
     private suspend fun global(providers: List<EmoteProvider>): List<Emote> =
         globalLock.withLock {
-            val sources = providers.mapTo(mutableSetOf()) { it.source }
-            val cached = globalCache
-            if (cached != null && cached.first == sources) {
-                cached.second
-            } else {
-                collect(providers) { it.global() }.also { if (it.isNotEmpty()) globalCache = sources to it }
+            val missing = providers.filter { globalBySource[it.source] == null }
+            if (missing.isNotEmpty()) {
+                fetchEach(missing) { it.global() }.forEach { (source, list) ->
+                    if (list.isNotEmpty()) globalBySource[source] = list
+                }
             }
+            providers.flatMap { globalBySource[it.source].orEmpty() }.sortedBy { it.source.ordinal }
+        }
+
+    private suspend fun fetchEach(
+        providers: List<EmoteProvider>,
+        load: suspend (EmoteProvider) -> List<Emote>,
+    ): List<Pair<EmoteSource, List<Emote>>> =
+        coroutineScope {
+            providers
+                .map { provider ->
+                    async {
+                        val loaded =
+                            try {
+                                load(provider)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                emptyList()
+                            }
+                        provider.source to loaded
+                    }
+                }.awaitAll()
         }
 
     private suspend fun channel(

@@ -219,3 +219,69 @@ class FfzProvider(
     override suspend fun channel(roomId: String): List<Emote> =
         FfzParser.parseRoom(fetcher.fetchText("https://api.frankerfacez.com/v1/room/id/$roomId"))
 }
+
+// ---------------------------------------------------------------- Twitch
+
+@Serializable
+internal data class TwitchEmoteBody(
+    val data: List<TwitchHelixEmote> = emptyList(),
+)
+
+@Serializable
+internal data class TwitchHelixEmote(
+    val id: String = "",
+    val name: String = "",
+    val format: List<String> = emptyList(),
+)
+
+object TwitchEmoteParser {
+    fun parse(body: String): List<Emote> = json.decodeFromString<TwitchEmoteBody>(body).data.mapNotNull(::toEmote)
+
+    /** Static frame for grids. `default` is what chat already uses, and it may be an animated GIF. */
+    internal fun stillUrl(id: String): String = cdn(id, "static", "3.0")
+
+    internal fun chatUrl(id: String): String = cdn(id, "default", "2.0")
+
+    private fun toEmote(emote: TwitchHelixEmote): Emote? {
+        if (emote.id.isBlank() || emote.name.isBlank()) return null
+        return Emote(
+            name = emote.name,
+            url = chatUrl(emote.id),
+            source = EmoteSource.Twitch,
+            stillUrl = stillUrl(emote.id),
+        )
+    }
+
+    private fun cdn(
+        id: String,
+        format: String,
+        scale: String,
+    ): String = "https://static-cdn.jtvnw.net/emoticons/v2/$id/$format/dark/$scale"
+}
+
+/**
+ * Helix global and channel emotes. Needs a user or app token; a missing token contributes
+ * nothing, the same as a provider that is down. No extra scope: channel emotes are the
+ * broadcaster's set, not the signed-in user's unlocked set.
+ */
+class TwitchEmoteProvider(
+    private val clientId: String,
+    private val token: suspend () -> String?,
+    private val fetch: suspend (url: String, clientId: String, accessToken: String) -> String,
+) : EmoteProvider {
+    override val source = EmoteSource.Twitch
+
+    override suspend fun global(): List<Emote> = load("https://api.twitch.tv/helix/chat/emotes/global")
+
+    override suspend fun channel(roomId: String): List<Emote> {
+        if (roomId.isBlank()) return emptyList()
+        val id = java.net.URLEncoder.encode(roomId, Charsets.UTF_8)
+        return load("https://api.twitch.tv/helix/chat/emotes?broadcaster_id=$id")
+    }
+
+    private suspend fun load(url: String): List<Emote> {
+        if (clientId.isBlank()) return emptyList()
+        val access = token() ?: return emptyList()
+        return TwitchEmoteParser.parse(fetch(url, clientId, access))
+    }
+}

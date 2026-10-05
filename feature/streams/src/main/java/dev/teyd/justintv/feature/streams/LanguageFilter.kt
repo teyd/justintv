@@ -13,8 +13,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,26 +29,44 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.teyd.justintv.core.model.StreamLanguages
 
-/** Top bar action that opens the language filter. Tinted when a filter is active. */
+/** What the chip says. Empty means no filter, not "zero languages". */
+internal fun languageFilterLabel(selected: Set<String>): String {
+    val labels = StreamLanguages.ALL.filter { it.code in selected }.map { it.label }
+    return when (labels.size) {
+        0 -> "Languages"
+        1 -> labels[0]
+        else -> "${labels.size} languages"
+    }
+}
+
+/**
+ * Filter chip for the stream list it actually narrows.
+ *
+ * Not an app-bar action: search and settings apply to the whole page, this does not.
+ * Callers place it next to that list.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LanguageFilterAction(
     selected: Set<String>,
     onChange: (Set<String>) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var open by remember { mutableStateOf(false) }
 
-    IconButton(onClick = { open = true }) {
-        Icon(
-            imageVector = Icons.Filled.Translate,
-            contentDescription = "Filter by language",
-            tint =
-                if (selected.isEmpty()) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
-        )
-    }
+    FilterChip(
+        selected = selected.isNotEmpty(),
+        onClick = { open = true },
+        label = { Text(languageFilterLabel(selected)) },
+        modifier = modifier,
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Filled.Translate,
+                contentDescription = null,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        },
+    )
 
     if (open) {
         LanguageFilterDialog(

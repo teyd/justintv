@@ -66,9 +66,13 @@ class ChatViewModel
                 }
             }
             viewModelScope.launch {
-                twitch.state.collect {
-                    auth = it
+                twitch.state.collect { next ->
+                    val signedIn = next is AuthState.LoggedIn && auth !is AuthState.LoggedIn
+                    auth = next
                     publishComposer()
+                    // The first index may have run before the token was restored. Twitch emotes
+                    // need that token; third-party sets are already cached.
+                    if (signedIn) session.refreshEmotes()
                 }
             }
         }
@@ -98,6 +102,7 @@ class ChatViewModel
                         ) { loaded, sevenTv, bttv, ffz ->
                             loaded.filter { emote ->
                                 when (emote.source) {
+                                    EmoteSource.Twitch -> true
                                     EmoteSource.SevenTv -> sevenTv
                                     EmoteSource.Bttv -> bttv
                                     EmoteSource.Ffz -> ffz

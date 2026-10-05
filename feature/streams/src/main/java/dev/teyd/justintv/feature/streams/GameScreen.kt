@@ -1,8 +1,8 @@
 package dev.teyd.justintv.feature.streams
 
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -13,7 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -40,24 +40,28 @@ fun GameScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                actions = {
-                    LanguageFilterAction(selected = state.languages, onChange = viewModel::setLanguages)
-                },
             )
         },
     ) { padding ->
-        StreamList(
-            state = state.streams,
-            emptyText = "Nobody is live in this category for this filter",
-            onRefresh = viewModel::refresh,
-            onWatch = onWatch,
-            contentPadding =
-                PaddingValues(
-                    start = padding.calculateStartPadding(LocalLayoutDirection.current),
-                    top = padding.calculateTopPadding(),
-                    end = padding.calculateEndPadding(LocalLayoutDirection.current),
-                    bottom = padding.calculateBottomPadding() + extraBottomPadding,
-                ),
-        )
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(bottom = extraBottomPadding),
+        ) {
+            LanguageFilterAction(
+                selected = state.languages,
+                onChange = viewModel::setLanguages,
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 4.dp),
+            )
+            StreamList(
+                state = state.streams,
+                emptyText = "Nobody is live in this category for this filter",
+                onRefresh = viewModel::refresh,
+                onWatch = onWatch,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
