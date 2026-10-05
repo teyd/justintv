@@ -122,7 +122,15 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxSize(),
             ) { page ->
                 when (tabs.getOrNull(page)) {
-                    HomeTab.Following -> FollowingTab()
+                    HomeTab.Following -> StreamList(
+                        state = state.following,
+                        emptyText = "Nobody you follow is live",
+                        onRefresh = viewModel::refreshFollowing,
+                        onWatch = onWatch,
+                        contentPadding = PaddingValues(
+                            bottom = padding.calculateBottomPadding() + extraBottomPadding,
+                        ),
+                    )
 
                     HomeTab.Live -> StreamList(
                         state = state.live,
@@ -151,16 +159,6 @@ fun HomeScreen(
             }
         }
     }
-}
-
-/** Placeholder until following lands with login: only reachable when logged in. */
-@Composable
-private fun FollowingTab() {
-    CenteredMessage(
-        message = "Channels you follow that are live will appear here.",
-        actionLabel = null,
-        onAction = null,
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

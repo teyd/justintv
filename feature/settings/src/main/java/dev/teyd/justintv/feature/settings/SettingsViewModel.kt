@@ -39,6 +39,7 @@ data class SettingsUiState(
     val sevenTv: Boolean = true,
     val bttv: Boolean = true,
     val ffz: Boolean = true,
+    val showChatInput: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.System,
     val dynamicColor: Boolean = false,
 )
@@ -99,6 +100,11 @@ class SettingsViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            chatSettings.showInput.collect { enabled ->
+                _state.update { it.copy(showChatInput = enabled) }
+            }
+        }
         checkProxies()
     }
 
@@ -136,6 +142,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setFfz(enabled: Boolean) {
         viewModelScope.launch { chatSettings.setFfz(enabled) }
+    }
+
+    fun setShowChatInput(enabled: Boolean) {
+        viewModelScope.launch { chatSettings.setShowInput(enabled) }
     }
 
     fun setThemeMode(mode: ThemeMode) {

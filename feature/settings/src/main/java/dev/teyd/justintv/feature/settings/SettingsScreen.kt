@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import android.content.Intent
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -50,9 +52,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.teyd.justintv.core.data.ThemeMode
+import dev.teyd.justintv.core.network.AuthState
 
 private enum class SettingsPage(val title: String) {
     Hub("Settings"),
+    Account("Account"),
     Playback("Playback"),
     AdBlock("Ad blocking"),
     Chat("Chat"),
@@ -68,6 +72,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val accountViewModel: AccountViewModel = hiltViewModel()
+    val account by accountViewModel.state.collectAsStateWithLifecycle()
     var page by rememberSaveable { mutableStateOf(SettingsPage.Hub) }
     val version = rememberVersionName()
 
@@ -89,7 +95,15 @@ fun SettingsScreen(
     ) { padding ->
         when (page) {
             SettingsPage.Hub -> SettingsHub(
+                account = account,
                 onOpen = { page = it },
+                modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
+                contentPadding = padding,
+            )
+            SettingsPage.Account -> AccountPage(
+                state = account,
+                onStart = accountViewModel::start,
+                onLogout = accountViewModel::logout,
                 modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
                 contentPadding = padding,
             )
@@ -115,6 +129,7 @@ fun SettingsScreen(
                 onSevenTv = viewModel::setSevenTv,
                 onBttv = viewModel::setBttv,
                 onFfz = viewModel::setFfz,
+                onShowInput = viewModel::setShowChatInput,
                 modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
                 contentPadding = padding,
             )
@@ -148,6 +163,7 @@ private fun rememberVersionName(): String {
 /** Account, then one row per section. Callable with no app dependencies. */
 @Composable
 private fun SettingsHub(
+    account: AuthState,
     onOpen: (SettingsPage) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(),
@@ -155,10 +171,12 @@ private fun SettingsHub(
     LazyColumn(modifier = modifier, contentPadding = contentPadding) {
         item {
             ListItem(
+                modifier = Modifier.clickable { onOpen(SettingsPage.Account) },
                 leadingContent = { Icon(Icons.Filled.Person, contentDescription = null) },
-                headlineContent = { Text("Not signed in") },
-                supportingContent = {
-                    Text("Sign in to see the channels you follow. That is the next piece of work.")
+                headlineContent = { Text(accountHeadline(account)) },
+                supportingContent = { Text(accountSupporting(account)) },
+                trailingContent = {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                 },
             )
         }
@@ -189,6 +207,64 @@ private fun SettingsHub(
             }
         }
     }
+}
+
+@Composable
+private fun AccountPage(
+    state: AuthState,
+    onStart: () -> Unit,
+    onLogout: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues,
+) {
+    val context = LocalContext.current
+    Column(
+        modifier = modifier.padding(contentPadding).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+    ) {
+        when (state) {
+            AuthState.LoggedOut -> {
+                Text("Not signed in", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Sign in to see the channels you follow. Twitch shows a code; you approve it on their site. The password is never typed here.",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Button(onClick = onStart) { Text("Sign in") }
+            }
+            is AuthState.Pending -> {
+                Text("Enter this code on Twitch", style = MaterialTheme.typography.titleLarge)
+                Text(state.userCode, style = MaterialTheme.typography.displaySmall)
+                Text("Waiting for approval. This page updates on its own.", style = MaterialTheme.typography.bodyLarge)
+                Button(onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(state.verificationUri)))
+                }) { Text("Open Twitch") }
+            }
+            is AuthState.LoggedIn -> {
+                Text(state.displayName, style = MaterialTheme.typography.titleLarge)
+                Text(state.login, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = onLogout) { Text("Log out") }
+            }
+            is AuthState.Failed -> {
+                Text("Could not sign in", style = MaterialTheme.typography.titleLarge)
+                Text(state.message, style = MaterialTheme.typography.bodyLarge)
+                Button(onClick = onStart) { Text("Try again") }
+            }
+        }
+    }
+}
+
+private fun accountHeadline(state: AuthState): String = when (state) {
+    is AuthState.LoggedIn -> state.displayName
+    is AuthState.Pending -> "Waiting for Twitch"
+    is AuthState.Failed -> "Sign-in failed"
+    AuthState.LoggedOut -> "Not signed in"
+}
+
+private fun accountSupporting(state: AuthState): String = when (state) {
+    is AuthState.LoggedIn -> "Signed in as ${state.login}"
+    is AuthState.Pending -> "Code ${state.userCode}"
+    is AuthState.Failed -> state.message
+    AuthState.LoggedOut -> "Sign in to see the channels you follow."
 }
 
 @Composable
@@ -302,6 +378,7 @@ private fun ChatPage(
     onSevenTv: (Boolean) -> Unit,
     onBttv: (Boolean) -> Unit,
     onFfz: (Boolean) -> Unit,
+    onShowInput: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: androidx.compose.foundation.layout.PaddingValues,
 ) {
@@ -322,6 +399,17 @@ private fun ChatPage(
                 limit = state.recentMessageLimit,
                 enabled = state.recentMessages,
                 onSelect = onLimit,
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text("Chat input") },
+                supportingContent = {
+                    Text("Show the message box while you're signed in. Sending needs a separate chat permission.")
+                },
+                trailingContent = {
+                    Switch(checked = state.showChatInput, onCheckedChange = onShowInput)
+                },
             )
         }
         item {

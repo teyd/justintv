@@ -4,10 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.teyd.justintv.core.data.LanguageFilterStore
-import dev.teyd.justintv.core.data.SessionStore
 import dev.teyd.justintv.core.model.Game
 import dev.teyd.justintv.core.model.LiveStream
+import dev.teyd.justintv.core.network.AuthState
 import dev.teyd.justintv.core.network.DirectorySource
+import dev.teyd.justintv.core.network.TwitchSession
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
@@ -30,24 +31,28 @@ data class HomeUiState(
     val languages: Set<String> = emptySet(),
     val live: LoadState<LiveStream> = LoadState(isLoading = true),
     val games: LoadState<Game> = LoadState(isLoading = true),
+    val following: LoadState<LiveStream> = LoadState(),
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val directory: DirectorySource,
     private val languageStore: LanguageFilterStore,
-    private val sessionStore: SessionStore,
+    private val session: TwitchSession,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
     private var liveJob: Job? = null
+    private var followingJob: Job? = null
 
     init {
         viewModelScope.launch {
-            sessionStore.isLoggedIn.distinctUntilChanged().collect { loggedIn ->
+            session.state.collect { auth ->
+                val loggedIn = auth is AuthState.LoggedIn
                 _state.update { it.copy(isLoggedIn = loggedIn) }
+                if (loggedIn) loadFollowing() else followingJob?.cancel()
             }
         }
         viewModelScope.launch {
@@ -60,6 +65,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun refreshLive() = loadLive(_state.value.languages)
+
+    fun refreshFollowing() = loadFollowing()
 
     fun refreshGames() = loadGames()
 
@@ -79,6 +86,23 @@ class HomeViewModel @Inject constructor(
             } catch (e: Exception) {
                 _state.update {
                     it.copy(live = it.live.copy(isLoading = false, error = e.message ?: "Could not load streams"))
+                }
+            }
+        }
+    }
+
+    private fun loadFollowing() {
+        followingJob?.cancel()
+        followingJob = viewModelScope.launch {
+            _state.update { it.copy(following = it.following.copy(isLoading = true, error = null)) }
+            try {
+                val streams = session.followedStreams()
+                _state.update { it.copy(following = LoadState(items = streams)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(following = it.following.copy(isLoading = false, error = e.message ?: "Could not load follows"))
                 }
             }
         }
