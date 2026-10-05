@@ -56,8 +56,12 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:adfree"))
     implementation(project(":core:player"))
+    implementation(project(":core:data"))
+    implementation(project(":core:model"))
+    implementation(project(":core:network"))
     implementation(project(":feature:streams"))
     implementation(project(":feature:watch"))
+    implementation(project(":feature:settings"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

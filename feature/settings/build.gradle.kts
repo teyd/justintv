@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.teyd.justintv.feature.streams"
+    namespace = "dev.teyd.justintv.feature.settings"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -31,9 +31,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core:designsystem"))
-    implementation(project(":core:model"))
-    implementation(project(":core:data"))
-    implementation(project(":core:network"))
+    implementation(project(":core:adfree"))
 
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -41,11 +39,7 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.android.compiler)
 
-    implementation(libs.coil.compose)
-    implementation(libs.coil.network.okhttp)
-
     testImplementation(libs.junit)
     testImplementation(libs.truth)
-    testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
 }
