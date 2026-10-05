@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.teyd.justintv.feature.streams"
+    namespace = "dev.teyd.justintv.feature.watch"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -31,6 +31,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core:designsystem"))
+    implementation(project(":core:player"))
     implementation(project(":core:adfree"))
 
     implementation(libs.androidx.lifecycle.viewmodel.compose)

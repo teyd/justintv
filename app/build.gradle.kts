@@ -54,7 +54,10 @@ kotlin {
 
 dependencies {
     implementation(project(":core:designsystem"))
+    implementation(project(":core:adfree"))
+    implementation(project(":core:player"))
     implementation(project(":feature:streams"))
+    implementation(project(":feature:watch"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
