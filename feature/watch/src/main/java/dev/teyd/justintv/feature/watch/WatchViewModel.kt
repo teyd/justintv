@@ -53,7 +53,7 @@ class WatchViewModel @Inject constructor(
         "Missing $WATCH_ARG_LOGIN navigation argument"
     }
 
-    val playerHolder: PlayerHolder = PlayerHolder(playerFactory.createPlayer())
+    val playerHolder: PlayerHolder = playerFactory.createHolder()
 
     private val _state = MutableStateFlow(WatchUiState(channelLogin = login))
     val state: StateFlow<WatchUiState> = _state.asStateFlow()
