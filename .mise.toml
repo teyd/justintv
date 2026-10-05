@@ -1,3 +1,12 @@
-# Toolchain for this repo. Keeps JDK consistent across the team and CI.
+# Toolchain for this repo. Keeps JDK and the Android SDK consistent across the team and CI.
 [tools]
 java = "temurin-21.0.12+101.0.LTS"
+android-sdk = "23.0"
+
+# Once per machine after `mise install`: SDK packages, and local.properties for the build.
+[tasks."android:setup"]
+description = "Install the Android SDK packages and point local.properties at the mise SDK"
+run = """
+android sdk install platform-tools 'platforms;android-37.0' 'build-tools;36.0.0'
+printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+"""
