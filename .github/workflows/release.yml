@@ -1,0 +1,152 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# Serialize all versions, not just reruns of one tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          component='(0|[1-9][0-9]?)'
+          if ! [[ "$GITHUB_REF_NAME" =~ ^v${component}\.${component}\.${component}$ ]]; then
+            echo "Use canonical vMAJOR.MINOR.PATCH with components in 0..99."
+            exit 1
+          fi
+          IFS=. read -r major minor patch <<< "$version"
+          code=$((major * 10000 + minor * 100 + patch))
+          [ "$code" -gt 0 ] || { echo "versionCode must be positive."; exit 1; }
+          # checkout's fetch-depth: 0 fetches all branches, including origin/main.
+          # Do not fetch again: checkout deliberately removes its token credentials.
+          git merge-base --is-ancestor HEAD origin/main || {
+            echo "The tagged commit must be on main."
+            exit 1
+          }
+          # Include drafts: an incomplete release must be reviewed, not overwritten.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[].tag_name' > "$RUNNER_TEMP/release-tags"
+          while IFS= read -r tag; do
+            if [ "$tag" = "$GITHUB_REF_NAME" ]; then
+              echo "A release already exists for $tag. Refusing to replace it."
+              exit 1
+            fi
+            if [[ "$tag" =~ ^v${component}\.${component}\.${component}$ ]]; then
+              IFS=. read -r a b c <<< "${tag#v}"
+              previous=$((a * 10000 + b * 100 + c))
+              if [ "$code" -le "$previous" ]; then
+                echo "Release versionCode must exceed $tag ($previous)."
+                exit 1
+              fi
+            fi
+          done < "$RUNNER_TEMP/release-tags"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+
+      - name: Ensure Android SDK packages
+        run: |
+          (yes || true) | sdkmanager --licenses > /dev/null
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+
+      - name: Check the tagged commit
+        run: ./gradlew :app:assembleDebug testDebugUnitTest spotlessCheck lint --stacktrace
+
+      - name: Build and verify signed APK
+        env:
+          VERSION: ${{ steps.validate.outputs.version }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+        run: |
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD ANDROID_SIGNING_CERT_SHA256 TWITCH_CLIENT_ID; do
+            [ -n "${!name}" ] || { echo "Missing repository secret: $name"; exit 1; }
+          done
+          umask 077
+          trap 'rm -f "$ANDROID_KEYSTORE_FILE"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_FILE"
+          ./gradlew :app:assembleRelease --stacktrace
+          signed='app/build/outputs/apk/release/app-release.apk'
+          metadata='app/build/outputs/apk/release/output-metadata.json'
+          IFS=. read -r major minor patch <<< "$VERSION"
+          code=$((major * 10000 + minor * 100 + patch))
+          jq -e --arg version "$VERSION" --argjson code "$code" \
+            '.applicationId == "dev.teyd.justintv" and (.elements | length == 1) and .elements[0].versionName == $version and .elements[0].versionCode == $code' "$metadata"
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          "$tools/apksigner" verify --verbose --print-certs "$signed" > "$RUNNER_TEMP/apk-signature.txt"
+          actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/apk-signature.txt" | tr '[:upper:]' '[:lower:]')"
+          expected="$(printf '%s' "$ANDROID_SIGNING_CERT_SHA256" | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+          [[ "$expected" =~ ^[0-9a-f]{64}$ ]] && [ "$actual" = "$expected" ] || {
+            echo "APK signing certificate does not match ANDROID_SIGNING_CERT_SHA256."
+            exit 1
+          }
+          # Verify embedded manifest, not only Gradle's output metadata.
+          "$tools/aapt" dump badging "$signed" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "package: name='dev.teyd.justintv' versionCode='$code' versionName='$VERSION'" "$RUNNER_TEMP/apk-badging.txt"
+          mkdir -p dist
+          cp "$signed" "dist/JustinTV-${VERSION}.apk"
+          (cd dist && sha256sum "JustinTV-${VERSION}.apk" > "JustinTV-${VERSION}.apk.sha256")
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-apk
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-apk
+          path: dist
+
+      - name: Publish without replacing released assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          cd dist
+          sha256sum --check "JustinTV-${VERSION}.apk.sha256"
+          gh release create "$GITHUB_REF_NAME" \
+            "JustinTV-${VERSION}.apk" "JustinTV-${VERSION}.apk.sha256" \
+            --draft --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          gh release edit "$GITHUB_REF_NAME" --draft=false
+          echo "Published $GITHUB_REF_NAME with a verified signed APK and SHA-256 checksum." >> "$GITHUB_STEP_SUMMARY"
