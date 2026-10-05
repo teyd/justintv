@@ -24,13 +24,17 @@ object StatsFormat {
         return "${width}×$height$fps"
     }
 
-    /** Pill shown on the video at all times: live delay and where the stream comes from. */
-    fun pill(stats: PlayerStats, source: String): String =
-        if (source.isBlank()) seconds(stats.liveLatencyMs) else "${seconds(stats.liveLatencyMs)} · $source"
+    /** A proxy host, or "none" when the stream is not going through one. */
+    fun proxy(host: String): String = host.ifBlank { NONE }
+
+    /** Pill shown on the video: live delay and the proxy, or none. */
+    fun pill(stats: PlayerStats, proxyHost: String): String =
+        "${seconds(stats.liveLatencyMs)} · ${proxy(proxyHost)}"
 
     /** Label and value pairs for the stats panel, in display order. */
-    fun lines(stats: PlayerStats, source: String): List<Pair<String, String>> = listOf(
+    fun lines(stats: PlayerStats, proxyHost: String): List<Pair<String, String>> = listOf(
         "latency" to seconds(stats.liveLatencyMs),
+        "proxy" to proxy(proxyHost),
         "buffer" to seconds(stats.bufferedMs),
         "video" to resolution(stats.width, stats.height, stats.frameRate),
         "bitrate" to megabits(stats.bitrate?.toLong()),
@@ -38,6 +42,7 @@ object StatsFormat {
         "codec" to (stats.codecs?.takeIf { it.isNotBlank() } ?: UNKNOWN),
         "dropped" to stats.droppedFrames.toString(),
         "speed" to String.format(Locale.US, "%.2fx", stats.playbackSpeed),
-        "source" to source.ifBlank { UNKNOWN },
     )
+
+    private const val NONE = "none"
 }

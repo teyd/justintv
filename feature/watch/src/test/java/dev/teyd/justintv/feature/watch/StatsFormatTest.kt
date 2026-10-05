@@ -39,7 +39,7 @@ class StatsFormatTest {
         val stats = PlayerStats(liveLatencyMs = 3_200)
 
         assertThat(StatsFormat.pill(stats, "eu2.luminous.dev")).isEqualTo("3.2s · eu2.luminous.dev")
-        assertThat(StatsFormat.pill(stats, "")).isEqualTo("3.2s")
+        assertThat(StatsFormat.pill(stats, "")).isEqualTo("3.2s · none")
     }
 
     @Test
@@ -57,27 +57,27 @@ class StatsFormatTest {
                 droppedFrames = 12,
                 playbackSpeed = 1.03f,
             ),
-            source = "eu2.luminous.dev",
+            proxyHost = "eu2.luminous.dev",
         ).toMap()
 
         assertThat(lines.keys).containsExactly(
-            "latency", "buffer", "video", "bitrate", "network", "codec", "dropped", "speed", "source",
+            "latency", "proxy", "buffer", "video", "bitrate", "network", "codec", "dropped", "speed",
         ).inOrder()
         assertThat(lines["latency"]).isEqualTo("3.2s")
+        assertThat(lines["proxy"]).isEqualTo("eu2.luminous.dev")
         assertThat(lines["buffer"]).isEqualTo("4.1s")
         assertThat(lines["video"]).isEqualTo("1920×1080 60fps")
         assertThat(lines["network"]).isEqualTo("24.1 Mbps")
         assertThat(lines["dropped"]).isEqualTo("12")
         assertThat(lines["speed"]).isEqualTo("1.03x")
-        assertThat(lines["source"]).isEqualTo("eu2.luminous.dev")
     }
 
     @Test
     fun `an empty stats snapshot renders without crashing`() {
-        val lines = StatsFormat.lines(PlayerStats(), source = "").toMap()
+        val lines = StatsFormat.lines(PlayerStats(), proxyHost = "").toMap()
 
         assertThat(lines["latency"]).isEqualTo("–")
         assertThat(lines["codec"]).isEqualTo("–")
-        assertThat(lines["source"]).isEqualTo("–")
+        assertThat(lines["proxy"]).isEqualTo("none")
     }
 }

@@ -2,6 +2,7 @@ package dev.teyd.justintv.core.network
 
 import dev.teyd.justintv.core.model.Game
 import dev.teyd.justintv.core.model.LiveStream
+import dev.teyd.justintv.core.model.twitchImageUrl
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -28,6 +29,7 @@ internal data class StreamNode(
     val id: String,
     val title: String? = null,
     val viewersCount: Int = 0,
+    val createdAt: String? = null,
     val previewImageURL: String? = null,
     val broadcaster: BroadcasterNode? = null,
     val game: GameNode? = null,
@@ -60,6 +62,18 @@ internal data class TopStreamsData(val streams: Connection<StreamNode>? = null)
 internal data class TopGamesData(val games: Connection<GameNode>? = null)
 
 @Serializable
+internal data class ChannelStreamData(val user: ChannelUser? = null)
+
+@Serializable
+internal data class ChannelUser(val stream: ChannelStream? = null)
+
+@Serializable
+internal data class ChannelStream(val viewersCount: Int = 0, val createdAt: String? = null)
+
+/** What the player shows about a live channel, refreshed while it plays. */
+data class ChannelLive(val viewers: Int, val startedAt: String?)
+
+@Serializable
 internal data class GameStreamsData(val game: GameWithStreams? = null)
 
 @Serializable
@@ -78,6 +92,10 @@ object DirectoryParser {
 
     fun parseGameStreams(body: String): List<LiveStream> =
         decode<GameStreamsData>(body).game?.streams.toLiveStreams()
+
+    /** Null when the channel is offline or unknown. */
+    fun parseChannelLive(body: String): ChannelLive? =
+        decode<ChannelStreamData>(body).user?.stream?.let { ChannelLive(it.viewersCount, it.createdAt) }
 
     fun parseTopGames(body: String): List<Game> =
         decode<TopGamesData>(body).games?.edges.orEmpty().mapNotNull { edge ->
@@ -120,10 +138,11 @@ object DirectoryParser {
                 displayName = broadcaster.displayName ?: broadcaster.login,
                 title = node.title.orEmpty(),
                 viewerCount = node.viewersCount,
-                previewUrl = node.previewImageURL,
+                previewUrl = twitchImageUrl(node.previewImageURL),
                 avatarUrl = broadcaster.profileImageURL,
                 gameName = node.game?.displayName ?: node.game?.name,
                 language = broadcaster.broadcastSettings?.language,
+                startedAt = node.createdAt,
             )
         }
 }
@@ -133,6 +152,9 @@ interface DirectorySource {
     suspend fun topStreams(languages: Set<String>): List<LiveStream>
     suspend fun gameStreams(gameName: String, languages: Set<String>): List<LiveStream>
     suspend fun topGames(): List<Game>
+
+    /** Current viewers and start time, or null when the channel is not live. */
+    suspend fun channelLive(login: String): ChannelLive?
 }
 
 /** Anonymous directory over GraphQL. See [DirectoryQueries] for its limits. */
@@ -146,6 +168,9 @@ class TwitchDirectoryApi(private val gql: GqlClient) : DirectorySource {
 
     override suspend fun topGames(): List<Game> =
         DirectoryParser.parseTopGames(request(DirectoryQueries.topGames()))
+
+    override suspend fun channelLive(login: String): ChannelLive? =
+        DirectoryParser.parseChannelLive(request(DirectoryQueries.channelStream(login)))
 
     private suspend fun request(query: String): String {
         val body = kotlinx.serialization.json.buildJsonObject {

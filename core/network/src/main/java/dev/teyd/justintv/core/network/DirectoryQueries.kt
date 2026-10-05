@@ -16,7 +16,7 @@ object DirectoryQueries {
     const val MAX_GAMES = 100
 
     private const val STREAM_FIELDS =
-        "id title viewersCount previewImageURL(width:440,height:248) " +
+        "id title viewersCount createdAt previewImageURL(width:440,height:248) " +
             "broadcaster{login displayName profileImageURL(width:70) broadcastSettings{language}} " +
             "game{name displayName}"
 
@@ -33,6 +33,10 @@ object DirectoryQueries {
         return "query{game(name:${JsonPrimitive(gameName)}){streams(first:${limit.coerceIn(1, MAX_STREAMS)}$options)" +
             "{edges{node{$STREAM_FIELDS}}}}}"
     }
+
+    /** Viewers and start time for one channel. `stream` is null when it is offline. */
+    fun channelStream(login: String): String =
+        "query{user(login:${JsonPrimitive(login.lowercase())}){stream{viewersCount createdAt}}}"
 
     fun topGames(limit: Int = MAX_GAMES): String =
         "query{games(first:${limit.coerceIn(1, MAX_GAMES)}, options:{sort:VIEWER_COUNT})" +

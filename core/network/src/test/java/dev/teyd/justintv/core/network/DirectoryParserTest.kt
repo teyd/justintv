@@ -22,6 +22,20 @@ class DirectoryParserTest {
     """.trimIndent()
 
     @Test
+    fun `a live channel gives viewers and start time`() {
+        val live = DirectoryParser.parseChannelLive(
+            """{"data":{"user":{"stream":{"viewersCount":50967,"createdAt":"2026-10-05T08:37:24Z"}}}}""",
+        )
+        assertThat(live).isEqualTo(ChannelLive(50967, "2026-10-05T08:37:24Z"))
+    }
+
+    @Test
+    fun `an offline channel gives nothing`() {
+        assertThat(DirectoryParser.parseChannelLive("""{"data":{"user":{"stream":null}}}""")).isNull()
+        assertThat(DirectoryParser.parseChannelLive("""{"data":{"user":null}}""")).isNull()
+    }
+
+    @Test
     fun `parses live streams`() {
         val streams = DirectoryParser.parseTopStreams(streamsBody)
 

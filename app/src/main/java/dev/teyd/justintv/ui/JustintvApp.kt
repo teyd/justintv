@@ -1,9 +1,15 @@
 package dev.teyd.justintv.ui
 
 import android.net.Uri
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
@@ -21,6 +27,7 @@ import dev.teyd.justintv.feature.streams.HomeScreen
 import dev.teyd.justintv.core.player.VideoPlayer
 import androidx.compose.ui.unit.dp
 import dev.teyd.justintv.core.model.LiveStream
+import dev.teyd.justintv.feature.watch.activityChat
 import dev.teyd.justintv.feature.watch.PlaybackDockHeight
 import dev.teyd.justintv.feature.watch.PlaybackOverlay
 import dev.teyd.justintv.feature.watch.PlayerChrome
@@ -33,15 +40,24 @@ private const val ROUTE_GAME = "game"
 private const val ROUTE_WATCH = "watch"
 private const val ROUTE_SETTINGS = "settings"
 
+private const val ENTER_MS = 180
+private const val EXIT_MS = 90
+private const val SLIDE_FRACTION = 24
+
 @Composable
 fun JustintvApp() {
     val navController = rememberNavController()
     val playback = activityPlayback()
+    val chat = activityChat()
     val chrome by playback.chrome.collectAsStateWithLifecycle()
+    LaunchedEffect(chrome) {
+        if (chrome == PlayerChrome.Hidden) chat.close()
+    }
     val playing by playback.state.collectAsStateWithLifecycle()
     val settings = hiltViewModel<PipSettingsViewModel>()
     val inPip = rememberInPip()
     PipBinding(playback, settings.store)
+    KeepAwake(enabled = chrome == PlayerChrome.Expanded && !inPip)
 
     if (inPip && chrome != PlayerChrome.Hidden) {
         VideoPlayer(player = playback.playerHolder, modifier = Modifier.fillMaxSize())
@@ -55,10 +71,22 @@ fun JustintvApp() {
         NavHost(
             navController = navController,
             startDestination = ROUTE_HOME,
+            // The default is a 700 ms crossfade, which made every tap feel late: the list
+            // faded out slowly under a video slot that had already appeared. These are short
+            // and the incoming screen rises a few pixels, so it reads as one movement.
+            enterTransition = {
+                fadeIn(tween(ENTER_MS, delayMillis = EXIT_MS)) +
+                    slideInVertically(tween(ENTER_MS + EXIT_MS)) { it / SLIDE_FRACTION }
+            },
+            exitTransition = { fadeOut(tween(EXIT_MS)) },
+            popEnterTransition = { fadeIn(tween(ENTER_MS)) },
+            popExitTransition = {
+                fadeOut(tween(EXIT_MS)) + slideOutVertically(tween(ENTER_MS)) { it / SLIDE_FRACTION }
+            },
         ) {
             composable(ROUTE_HOME) {
                 HomeScreen(
-                    onWatch = { stream -> watch(playback, navController, stream) },
+                    onWatch = { stream -> watch(playback, chat, navController, stream) },
                     onOpenGame = { name -> navController.navigate("$ROUTE_GAME/${Uri.encode(name)}") { launchSingleTop = true } },
                     onOpenSettings = { navController.navigate(ROUTE_SETTINGS) { launchSingleTop = true } },
                     extraBottomPadding = dockPadding,
@@ -70,7 +98,7 @@ fun JustintvApp() {
             ) {
                 GameScreen(
                     onBack = { navController.popBackStack() },
-                    onWatch = { stream -> watch(playback, navController, stream) },
+                    onWatch = { stream -> watch(playback, chat, navController, stream) },
                     extraBottomPadding = dockPadding,
                 )
             }
@@ -113,9 +141,20 @@ private fun minimize(
 
 private fun watch(
     playback: dev.teyd.justintv.feature.watch.WatchViewModel,
+    chat: dev.teyd.justintv.feature.watch.ChatViewModel,
     navController: androidx.navigation.NavHostController,
     stream: LiveStream,
 ) {
-    playback.open(stream.login, stream.displayName, stream.title)
+    // Playback and chat both start on the tap, not when the watch screen has finished
+    // composing, so neither waits on the navigation animation.
+    playback.open(
+        channel = stream.login,
+        displayName = stream.displayName,
+        title = stream.title,
+        previewUrl = stream.previewUrl,
+        viewers = stream.viewerCount,
+        startedAt = stream.startedAt,
+    )
+    chat.open(stream.login)
     navController.navigate("$ROUTE_WATCH/${Uri.encode(stream.login)}") { launchSingleTop = true }
 }

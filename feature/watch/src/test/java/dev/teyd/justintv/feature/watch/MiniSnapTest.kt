@@ -66,4 +66,39 @@ class MiniSnapTest {
     fun `a downward fling dismisses without travel`() {
         assertThat(shouldDismissMini(offsetY = 0f, dockHeight = 100f, velocityY = MINI_DISMISS_VELOCITY)).isTrue()
     }
+
+    @Test
+    fun `a finger pixel moves the player by the same fraction of the travel`() {
+        assertThat(applyPlayerDrag(progress = 0f, deltaY = 200f, travel = 800f)).isEqualTo(0.25f)
+    }
+
+    @Test
+    fun `the player cannot be dragged above the expanded slot`() {
+        assertThat(applyPlayerDrag(progress = 0.1f, deltaY = -500f, travel = 800f)).isEqualTo(0f)
+    }
+
+    @Test
+    fun `a short drag on the full player springs back`() {
+        assertThat(settlePlayerDrag(progress = 0.2f, velocityY = 0f)).isEqualTo(PlayerDragSettle.Expanded)
+    }
+
+    @Test
+    fun `dragging past the commit point docks`() {
+        assertThat(settlePlayerDrag(progress = 0.5f, velocityY = 0f)).isEqualTo(PlayerDragSettle.Mini)
+    }
+
+    @Test
+    fun `a downward flick from the full player docks instead of dismissing`() {
+        assertThat(settlePlayerDrag(progress = 0.2f, velocityY = COLLAPSE_FLING)).isEqualTo(PlayerDragSettle.Mini)
+    }
+
+    @Test
+    fun `a downward flick from the dock dismisses`() {
+        assertThat(settlePlayerDrag(progress = 1f, velocityY = MINI_DISMISS_VELOCITY)).isEqualTo(PlayerDragSettle.Dismiss)
+    }
+
+    @Test
+    fun `pulling up from the dock expands`() {
+        assertThat(settlePlayerDrag(progress = 0.8f, velocityY = -COLLAPSE_FLING)).isEqualTo(PlayerDragSettle.Expanded)
+    }
 }
