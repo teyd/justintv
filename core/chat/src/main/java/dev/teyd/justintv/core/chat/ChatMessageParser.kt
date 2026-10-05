@@ -30,10 +30,12 @@ object ChatMessageParser {
 
         val user = irc.tags["display-name"]?.takeIf { it.isNotBlank() } ?: irc.nick ?: return null
         val ranges = parseEmoteTag(irc.tags["emotes"])
+        val color = ChatNameColor.resolve(irc.tags["color"], user)
 
         return ChatMessage(
             id = irc.tags["id"] ?: "${user}-${text.hashCode()}-${System.nanoTime()}",
             user = user,
+            color = color,
             segments = tokenize(text, ranges, index),
             isAction = isAction,
         )

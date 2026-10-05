@@ -20,6 +20,11 @@ sealed interface ChatSegment {
 data class ChatMessage(
     val id: String,
     val user: String,
+    /**
+     * Name colour as `#RRGGBB`. Twitch sends one when the viewer set it; otherwise the client
+     * hashes the nick into a stable palette so names still read as distinct.
+     */
+    val color: String,
     val segments: List<ChatSegment>,
     val isAction: Boolean = false,
 )

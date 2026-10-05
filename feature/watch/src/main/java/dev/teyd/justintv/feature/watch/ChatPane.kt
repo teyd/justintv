@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
@@ -133,8 +134,7 @@ fun ChatList(
 /** `name: message`, with every emote drawn inline at text height. */
 @Composable
 fun ChatLine(message: ChatMessage, modifier: Modifier = Modifier) {
-    val nameColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val built = remember(message, nameColor) { buildChatText(message, nameColor) }
+    val built = remember(message) { buildChatText(message) }
 
     androidx.compose.material3.Text(
         text = built.text,
@@ -146,8 +146,9 @@ fun ChatLine(message: ChatMessage, modifier: Modifier = Modifier) {
 
 private class BuiltChat(val text: AnnotatedString, val inline: Map<String, InlineTextContent>)
 
-private fun buildChatText(message: ChatMessage, nameColor: androidx.compose.ui.graphics.Color): BuiltChat {
+private fun buildChatText(message: ChatMessage): BuiltChat {
     val inline = HashMap<String, InlineTextContent>()
+    val nameColor = parseChatColor(message.color)
     val text = buildAnnotatedString {
         withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = nameColor)) { append(message.user) }
         append(if (message.isAction) " " else ": ")
@@ -176,4 +177,16 @@ private fun buildChatText(message: ChatMessage, nameColor: androidx.compose.ui.g
         }
     }
     return BuiltChat(text, inline)
+}
+
+/** `#RRGGBB` from the chat model becomes a Compose colour. Falls back to white on garbage. */
+internal fun parseChatColor(hex: String): Color {
+    val cleaned = hex.removePrefix("#")
+    if (cleaned.length != 6) return Color.White
+    val value = cleaned.toLongOrNull(16) ?: return Color.White
+    return Color(
+        red = ((value shr 16) and 0xFF) / 255f,
+        green = ((value shr 8) and 0xFF) / 255f,
+        blue = (value and 0xFF) / 255f,
+    )
 }
