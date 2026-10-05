@@ -4,7 +4,7 @@ A minimal, ad-free Twitch client for Android. Live streams, chat, and nothing ex
 
 Requires **Android 15+**. Early development.
 
-[Releases](https://github.com/teyd/justintv/releases)
+[Releases](https://github.com/teyd/justintv/releases) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 Not affiliated with Twitch.
 

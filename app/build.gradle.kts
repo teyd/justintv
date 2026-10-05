@@ -6,7 +6,12 @@ plugins {
 }
 
 // User-facing version. versionCode is derived so an upgrade integer cannot drift from the name.
-private val appVersionName = "0.1.0"
+private val appVersionName =
+    providers
+        .fileContents(rootProject.layout.projectDirectory.file("version.txt"))
+        .asText
+        .get()
+        .trim()
 
 android {
     namespace = "dev.teyd.justintv"

@@ -116,6 +116,7 @@ jobs:
           "$tools/aapt" dump badging "$signed" > "$RUNNER_TEMP/apk-badging.txt"
           grep -F "package: name='dev.teyd.justintv' versionCode='$code' versionName='$VERSION'" "$RUNNER_TEMP/apk-badging.txt"
           mkdir -p dist
+          python3 .github/scripts/release_notes.py "$VERSION" > dist/release-notes.md
           cp "$signed" "dist/JustinTV-${VERSION}.apk"
           (cd dist && sha256sum "JustinTV-${VERSION}.apk" > "JustinTV-${VERSION}.apk.sha256")
 
@@ -148,6 +149,6 @@ jobs:
           sha256sum --check "JustinTV-${VERSION}.apk.sha256"
           gh release create "$GITHUB_REF_NAME" \
             "JustinTV-${VERSION}.apk" "JustinTV-${VERSION}.apk.sha256" \
-            --draft --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+            --draft --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
           gh release edit "$GITHUB_REF_NAME" --draft=false
           echo "Published $GITHUB_REF_NAME with a verified signed APK and SHA-256 checksum." >> "$GITHUB_STEP_SUMMARY"

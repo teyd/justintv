@@ -28,6 +28,7 @@ keystore.properties
 
 # Tooling
 .mise.toml.local
+__pycache__/
 
 # Secrets. Schema is committed; values are not.
 .env
