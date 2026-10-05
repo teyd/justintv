@@ -33,7 +33,11 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:player"))
     implementation(project(":core:adfree"))
+    implementation(project(":core:chat"))
+    implementation(project(":core:model"))
 
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.coil.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.android)

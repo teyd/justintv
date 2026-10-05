@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.hls.HlsManifest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.teyd.justintv.core.adfree.PlaybackMethod
@@ -12,9 +12,11 @@ import dev.teyd.justintv.core.adfree.PlaylistResolver
 import dev.teyd.justintv.core.adfree.ResolvedPlayback
 import dev.teyd.justintv.core.network.PlaybackException
 import dev.teyd.justintv.core.player.ManifestAdDetector
+import dev.teyd.justintv.core.player.PlaybackState
 import dev.teyd.justintv.core.player.PlayerFactory
 import dev.teyd.justintv.core.player.PlayerHolder
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +31,10 @@ data class WatchUiState(
     val channelLogin: String = "",
     val isLoading: Boolean = true,
     val status: String = "",
+    /** Full description, for example "Proxy · eu2.luminous.dev". */
     val method: String = "",
+    /** Compact form for the player overlay, for example "eu2.luminous.dev". */
+    val source: String = "",
     val isVerified: Boolean = false,
     val adBreakDetected: Boolean = false,
     val error: String? = null,
@@ -61,21 +66,29 @@ class WatchViewModel @Inject constructor(
     private var currentMethod: PlaybackMethod? = null
     private var adBreakHandled = false
     private var lastSourceSwitchAtMs = 0L
+    private var errorRetries = 0
 
     private val playerListener = object : Player.Listener {
-        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             onPlayerTimelineChanged()
         }
     }
 
     init {
         playerHolder.exoPlayer.addListener(playerListener)
+        viewModelScope.launch {
+            playerHolder.playback.collect(::onPlaybackState)
+        }
         resolveAndPlay()
     }
 
     /** Re-resolves the stream, avoiding proxies that served ads or failed. */
     fun playAnotherSource() {
-        _state.update { it.copy(excludedProxies = it.excludedProxies) }
+        // A manual retry: the current proxy is the one the viewer is unhappy with.
+        (currentMethod as? PlaybackMethod.Proxied)?.proxyHost?.let { failed ->
+            _state.update { it.copy(excludedProxies = it.excludedProxies + failed) }
+        }
+        errorRetries = 0
         resolveAndPlay()
     }
 
@@ -95,6 +108,7 @@ class WatchViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         method = resolved.method.label,
+                        source = resolved.method.shortLabel,
                         isVerified = resolved.verified,
                         status = if (resolved.verified) {
                             "Ad-free stream verified"
@@ -104,24 +118,40 @@ class WatchViewModel @Inject constructor(
                     )
                 }
                 playerHolder.play(resolved.playlistUrl)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: PlaybackException) {
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "Could not start playback",
-                        status = "",
-                    )
-                }
+                showError(e.message ?: "Could not start playback")
             } catch (e: Exception) {
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "Could not start playback",
-                        status = "",
-                    )
-                }
+                showError(e.message ?: "Could not start playback")
             }
         }
+    }
+
+    private fun showError(message: String) {
+        _state.update { it.copy(isLoading = false, error = message, status = "") }
+    }
+
+    /**
+     * If the player fails (a proxy that returned a playlist and then stopped serving, say),
+     * move on to another source automatically. A few attempts, then show the error.
+     */
+    private fun onPlaybackState(playback: PlaybackState) {
+        if (playback.isPlaying) {
+            errorRetries = 0
+            return
+        }
+        if (playback.error == null || _state.value.isLoading) return
+
+        if (errorRetries >= MAX_AUTOMATIC_RETRIES) {
+            showError("Playback failed (${playback.error})")
+            return
+        }
+        errorRetries++
+        (currentMethod as? PlaybackMethod.Proxied)?.proxyHost?.let { failed ->
+            _state.update { it.copy(excludedProxies = it.excludedProxies + failed) }
+        }
+        resolveAndPlay()
     }
 
     /**
@@ -171,5 +201,7 @@ class WatchViewModel @Inject constructor(
     companion object {
         /** Mirrors the reload cooldown used by the browser scripts: no cascading restarts. */
         const val SOURCE_SWITCH_COOLDOWN_MS = 30_000L
+
+        const val MAX_AUTOMATIC_RETRIES = 3
     }
 }

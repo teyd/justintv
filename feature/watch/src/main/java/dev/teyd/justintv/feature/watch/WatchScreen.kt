@@ -1,135 +1,127 @@
 package dev.teyd.justintv.feature.watch
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Configuration
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.Lifecycle
-import dev.teyd.justintv.core.player.VideoPlayer
+import dev.teyd.justintv.core.designsystem.theme.JustintvTheme
+
+private val ChatWidth = 340.dp
 
 /**
- * Watch one channel.
+ * Watch one channel: video and chat.
  *
- * Deliberately plain: the video, the channel name, and one honest line about how the stream
- * is being served. Chat joins this screen in M2.
+ * Portrait puts the video on top and chat below. Landscape puts them side by side, and the
+ * chat can be hidden for a full-width picture. The screen is always dark; it is a video app.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WatchScreen(
     onBack: () -> Unit,
     viewModel: WatchViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    JustintvTheme(darkTheme = true) {
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        var chatVisible by rememberSaveable { mutableStateOf(true) }
 
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
-        viewModel.playerHolder.exoPlayer.pause()
-    }
-    LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (state.method.isNotEmpty()) {
-            viewModel.playerHolder.exoPlayer.play()
+        LightStatusBarIcons(light = false)
+
+        LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.playerHolder.pause() }
+        LifecycleEventEffect(Lifecycle.Event.ON_START) {
+            if (state.method.isNotEmpty()) viewModel.playerHolder.resume()
         }
-    }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(state.channelLogin) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .background(Color.Black),
-                contentAlignment = Alignment.Center,
-            ) {
-                VideoPlayer(
-                    player = viewModel.playerHolder,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                if (state.isLoading) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (state.method.isNotEmpty()) {
-                    Text(text = state.method, style = MaterialTheme.typography.titleMedium)
-                }
-                if (state.status.isNotEmpty()) {
-                    Text(
-                        text = state.status,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            if (landscape) {
+                Row(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                    PlayerPane(
+                        channel = state.channelLogin,
+                        state = state,
+                        holder = viewModel.playerHolder,
+                        onBack = onBack,
+                        onTryAnotherSource = viewModel::playAnotherSource,
+                        onToggleChat = { chatVisible = !chatVisible },
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
-                }
-                if (state.adBreakDetected) {
-                    Text(
-                        text = "Ad break detected",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                state.error?.let { error ->
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                if (state.error != null) {
-                    Button(onClick = { viewModel.playAnotherSource() }) {
-                        Text("Retry")
+                    if (chatVisible) {
+                        ChatPane(modifier = Modifier.width(ChatWidth).fillMaxHeight())
                     }
                 }
-                if (state.method.isNotEmpty() && state.error == null) {
-                    Button(onClick = { viewModel.playAnotherSource() }) {
-                        Text("Play another source")
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // The black box behind the status bar makes the video look edge to edge.
+                    Box(modifier = Modifier.fillMaxWidth().background(Color.Black).statusBarsPadding()) {
+                        PlayerPane(
+                            channel = state.channelLogin,
+                            state = state,
+                            holder = viewModel.playerHolder,
+                            onBack = onBack,
+                            onTryAnotherSource = viewModel::playAnotherSource,
+                            onToggleChat = null,
+                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                        )
                     }
+                    ChatPane(modifier = Modifier.weight(1f).navigationBarsPadding())
                 }
             }
         }
     }
+}
+
+/** Sets status bar icon contrast for this screen only, restoring the previous setting after. */
+@Composable
+private fun LightStatusBarIcons(light: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(light) {
+        val window = view.context.findActivity()?.window
+        if (window == null) {
+            onDispose { }
+        } else {
+            val controller = WindowCompat.getInsetsController(window, view)
+            val previous = controller.isAppearanceLightStatusBars
+            controller.isAppearanceLightStatusBars = light
+            onDispose { controller.isAppearanceLightStatusBars = previous }
+        }
+    }
+}
+
+private fun Context.findActivity(): Activity? {
+    var context = this
+    while (context is ContextWrapper) {
+        if (context is Activity) return context
+        context = context.baseContext
+    }
+    return null
 }

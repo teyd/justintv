@@ -14,6 +14,12 @@ import dev.teyd.justintv.core.adfree.DefaultProxies
 import dev.teyd.justintv.core.adfree.PlaylistResolver
 import dev.teyd.justintv.core.adfree.PlaylistVerifier
 import dev.teyd.justintv.core.adfree.ProxyHealthChecker
+import dev.teyd.justintv.core.chat.BttvProvider
+import dev.teyd.justintv.core.chat.ChatSession
+import dev.teyd.justintv.core.chat.EmoteRepository
+import dev.teyd.justintv.core.chat.FfzProvider
+import dev.teyd.justintv.core.chat.SevenTvProvider
+import dev.teyd.justintv.core.chat.TwitchIrcClient
 import dev.teyd.justintv.core.data.LanguageFilterStore
 import dev.teyd.justintv.core.data.SessionStore
 import dev.teyd.justintv.core.network.DirectorySource
@@ -35,6 +41,7 @@ object AppModule {
     private const val PROBE_CONNECT_TIMEOUT_SECONDS = 3L
     private const val VERIFY_CALL_TIMEOUT_SECONDS = 6L
     private const val PING_CALL_TIMEOUT_SECONDS = 4L
+    private const val EMOTE_CALL_TIMEOUT_SECONDS = 10L
 
     @Provides
     @Singleton
@@ -86,6 +93,22 @@ object AppModule {
         @ApplicationContext context: Context,
         httpClient: OkHttpClient,
     ): PlayerFactory = PlayerFactory(context, httpClient)
+
+    @Provides
+    @Singleton
+    fun twitchIrcClient(httpClient: OkHttpClient): TwitchIrcClient = TwitchIrcClient(httpClient)
+
+    /** One repository for the whole app, so global emote sets are downloaded once. */
+    @Provides
+    @Singleton
+    fun emoteRepository(httpClient: OkHttpClient): EmoteRepository {
+        val fetcher = OkHttpTextFetcher(probeClient(httpClient, EMOTE_CALL_TIMEOUT_SECONDS))
+        return EmoteRepository(listOf(SevenTvProvider(fetcher), BttvProvider(fetcher), FfzProvider(fetcher)))
+    }
+
+    /** Not a singleton: each chat screen gets its own session and connection state. */
+    @Provides
+    fun chatSession(irc: TwitchIrcClient, emotes: EmoteRepository): ChatSession = ChatSession(irc, emotes)
 
     /** Shares the connection pool and dispatcher with [base] but gives up quickly. */
     private fun probeClient(base: OkHttpClient, callTimeoutSeconds: Long): OkHttpClient =

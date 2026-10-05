@@ -56,6 +56,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:adfree"))
     implementation(project(":core:player"))
+    implementation(project(":core:chat"))
     implementation(project(":core:data"))
     implementation(project(":core:model"))
     implementation(project(":core:network"))
@@ -71,6 +72,9 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.window)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.coil.gif)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
