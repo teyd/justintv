@@ -24,6 +24,7 @@ import dev.teyd.justintv.core.chat.FfzProvider
 import dev.teyd.justintv.core.chat.SevenTvProvider
 import dev.teyd.justintv.core.chat.TwitchIrcClient
 import dev.teyd.justintv.core.data.AdBlockSettingsStore
+import dev.teyd.justintv.core.data.AppearanceSettingsStore
 import dev.teyd.justintv.core.data.ChatSettingsStore
 import dev.teyd.justintv.core.data.LanguageFilterStore
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
@@ -99,6 +100,11 @@ object AppModule {
     @Singleton
     fun playbackSettingsStore(dataStore: DataStore<Preferences>): PlaybackSettingsStore =
         PlaybackSettingsStore(dataStore)
+
+    @Provides
+    @Singleton
+    fun appearanceSettingsStore(dataStore: DataStore<Preferences>): AppearanceSettingsStore =
+        AppearanceSettingsStore(dataStore)
 
     @Provides
     @Singleton

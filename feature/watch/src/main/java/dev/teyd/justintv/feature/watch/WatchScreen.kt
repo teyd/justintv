@@ -2,56 +2,46 @@ package dev.teyd.justintv.feature.watch
 
 import android.app.Activity
 import android.content.Context
-import androidx.activity.ComponentActivity
-import androidx.activity.enableEdgeToEdge
 import android.content.ContextWrapper
 import android.content.res.Configuration
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.teyd.justintv.core.designsystem.theme.JustintvTheme
-
-private val ChatWidth = 240.dp
+import dev.teyd.justintv.core.designsystem.theme.LocalJustintvDarkTheme
 
 /**
- * Watch one channel: video and chat.
+ * Watch one channel: a slot for the video, and chat.
  *
- * Portrait puts the video on top and chat below. Landscape is fullscreen video; double-tap
- * the picture to show a narrow chat. Back minimises into a corner instead of stopping.
+ * The video surface is not here. The playback overlay draws the one PlayerView into this
+ * slot, and shrinks that same view into the dock when this screen is popped. Portrait puts
+ * the slot on top and chat below. Landscape is fullscreen video; double-tap shows a narrow
+ * chat. Back minimises instead of stopping.
  */
 @Composable
 fun WatchScreen(
@@ -59,49 +49,45 @@ fun WatchScreen(
     onMinimize: () -> Unit,
     viewModel: WatchViewModel = activityPlayback(),
 ) {
-    JustintvTheme(darkTheme = true) {
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-        var chatVisible by rememberSaveable { mutableStateOf(false) }
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-        BackHandler(onBack = onMinimize)
-        LaunchedEffect(channelLogin) { viewModel.open(channelLogin) }
-        Immersive(landscape)
-        LightStatusBarIcons(light = false)
+    BackHandler(onBack = onMinimize)
+    LaunchedEffect(channelLogin) { viewModel.open(channelLogin) }
+    Immersive(landscape)
+    // The slot is black and runs under the status bar, so those icons stay light. The
+    // navigation bar follows the app theme, because chat is what sits above it.
+    LightStatusBarIcons(statusBarLight = false, navigationBarLight = !LocalJustintvDarkTheme.current)
 
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            if (landscape) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    PlayerPane(
-                        channel = state.channelLogin.ifBlank { channelLogin },
-                        state = state,
-                        holder = viewModel.playerHolder,
-                        onBack = onMinimize,
-                        onTryAnotherSource = viewModel::playAnotherSource,
-                        onToggleChat = { chatVisible = !chatVisible },
-                        onDoubleTap = { chatVisible = !chatVisible },
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        if (landscape) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(Color.Black),
+                )
+                if (state.landscapeChat) {
+                    ChatPane(modifier = Modifier.width(LandscapeChatWidth).fillMaxHeight())
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Black)
+                        .statusBarsPadding(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .background(Color.Black),
                     )
-                    if (chatVisible) {
-                        ChatPane(modifier = Modifier.width(ChatWidth).fillMaxHeight())
-                    }
                 }
-            } else {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // The black box behind the status bar makes the video look edge to edge.
-                    Box(modifier = Modifier.fillMaxWidth().background(Color.Black).statusBarsPadding()) {
-                        PlayerPane(
-                            channel = state.channelLogin,
-                            state = state,
-                            holder = viewModel.playerHolder,
-                            onBack = onMinimize,
-                            onTryAnotherSource = viewModel::playAnotherSource,
-                            onToggleChat = null,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-                        )
-                    }
-                    ChatPane(modifier = Modifier.weight(1f).navigationBarsPadding())
-                }
+                ChatPane(modifier = Modifier.weight(1f).navigationBarsPadding())
             }
         }
     }
@@ -136,22 +122,29 @@ private fun Immersive(enabled: Boolean) {
     }
 }
 
-/** Sets system bar icon contrast for this screen only; the activity's default is re-applied after. */
+/**
+ * Sets system bar icon contrast for this screen only.
+ *
+ * Restores the app theme's contrast on the way out, not the device default. A forced dark
+ * theme would otherwise flip back to light icons when the system is light.
+ */
 @Composable
-private fun LightStatusBarIcons(light: Boolean) {
+private fun LightStatusBarIcons(statusBarLight: Boolean, navigationBarLight: Boolean) {
     val view = LocalView.current
     val configuration = LocalConfiguration.current
-    DisposableEffect(light, configuration) {
+    val appDark = LocalJustintvDarkTheme.current
+    DisposableEffect(statusBarLight, navigationBarLight, configuration, appDark) {
         val activity = view.context.findActivity() as? ComponentActivity
         if (activity == null) {
             onDispose { }
         } else {
             val controller = WindowCompat.getInsetsController(activity.window, view)
-            controller.isAppearanceLightStatusBars = light
-            controller.isAppearanceLightNavigationBars = light
-            // The activity's auto style follows the system theme, which may have changed
-            // while this screen was up; re-applying it is the correct restore.
-            onDispose { activity.enableEdgeToEdge() }
+            controller.isAppearanceLightStatusBars = statusBarLight
+            controller.isAppearanceLightNavigationBars = navigationBarLight
+            onDispose {
+                controller.isAppearanceLightStatusBars = !appDark
+                controller.isAppearanceLightNavigationBars = !appDark
+            }
         }
     }
 }

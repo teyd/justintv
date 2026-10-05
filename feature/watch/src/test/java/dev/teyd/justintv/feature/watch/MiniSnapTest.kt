@@ -6,53 +6,64 @@ import org.junit.Test
 class MiniSnapTest {
 
     @Test
-    fun `a release in the left half snaps left`() {
-        assertThat(snapMiniSide(releaseX = 100f, containerWidth = 1000f)).isEqualTo(MiniSide.Left)
+    fun `portrait expanded slot is 16 by 9 under the status bar`() {
+        val frame = expandedPlayerFrame(
+            containerWidth = 1080f,
+            containerHeight = 2400f,
+            statusBar = 80f,
+            landscape = false,
+            chatWidth = 0f,
+        )
+        assertThat(frame.left).isEqualTo(0f)
+        assertThat(frame.top).isEqualTo(80f)
+        assertThat(frame.width).isEqualTo(1080f)
+        assertThat(frame.height).isEqualTo(1080f * 9f / 16f)
     }
 
     @Test
-    fun `a release in the right half snaps right`() {
-        assertThat(snapMiniSide(releaseX = 800f, containerWidth = 1000f)).isEqualTo(MiniSide.Right)
+    fun `landscape expanded slot leaves room for chat`() {
+        val frame = expandedPlayerFrame(
+            containerWidth = 2400f,
+            containerHeight = 1080f,
+            statusBar = 0f,
+            landscape = true,
+            chatWidth = 400f,
+        )
+        assertThat(frame.width).isEqualTo(2000f)
+        assertThat(frame.height).isEqualTo(1080f)
     }
 
     @Test
-    fun `the midpoint snaps right`() {
-        assertThat(snapMiniSide(releaseX = 500f, containerWidth = 1000f)).isEqualTo(MiniSide.Right)
+    fun `the docked thumbnail sits above the navigation bar`() {
+        val frame = dockedVideoFrame(containerHeight = 2400f, navigationBar = 60f, dockHeight = 160f)
+        assertThat(frame.top).isEqualTo(2400f - 60f - 160f)
+        assertThat(frame.height).isEqualTo(160f)
+        assertThat(frame.width).isEqualTo(160f * 16f / 9f)
+        assertThat(frame.left).isEqualTo(0f)
     }
 
     @Test
-    fun `a fast fling left wins over a release in the right half`() {
-        assertThat(
-            snapMiniSide(releaseX = 800f, containerWidth = 1000f, velocityX = -MINI_FLING_VELOCITY * 2f),
-        ).isEqualTo(MiniSide.Left)
+    fun `halfway between expanded and docked is the midpoint`() {
+        val from = PlayerFrame(0f, 100f, 1000f, 500f)
+        val to = PlayerFrame(0f, 2000f, 200f, 100f)
+        val mid = lerpFrame(from, to, 0.5f)
+        assertThat(mid.top).isEqualTo(1050f)
+        assertThat(mid.width).isEqualTo(600f)
+        assertThat(mid.height).isEqualTo(300f)
     }
 
     @Test
-    fun `a fast fling right wins over a release in the left half`() {
-        assertThat(
-            snapMiniSide(releaseX = 100f, containerWidth = 1000f, velocityX = MINI_FLING_VELOCITY * 2f),
-        ).isEqualTo(MiniSide.Right)
-    }
-
-    @Test
-    fun `a slow release uses the release point`() {
-        assertThat(
-            snapMiniSide(releaseX = 100f, containerWidth = 1000f, velocityX = MINI_FLING_VELOCITY / 2f),
-        ).isEqualTo(MiniSide.Left)
-    }
-
-    @Test
-    fun `dragging past a third of the card dismisses it`() {
-        assertThat(shouldDismissMini(offsetY = 60f, cardHeight = 100f, velocityY = 0f)).isTrue()
+    fun `dragging past a third of the dock dismisses it`() {
+        assertThat(shouldDismissMini(offsetY = 60f, dockHeight = 100f, velocityY = 0f)).isTrue()
     }
 
     @Test
     fun `a small slow drag springs back`() {
-        assertThat(shouldDismissMini(offsetY = 10f, cardHeight = 100f, velocityY = 100f)).isFalse()
+        assertThat(shouldDismissMini(offsetY = 10f, dockHeight = 100f, velocityY = 100f)).isFalse()
     }
 
     @Test
     fun `a downward fling dismisses without travel`() {
-        assertThat(shouldDismissMini(offsetY = 0f, cardHeight = 100f, velocityY = MINI_DISMISS_VELOCITY)).isTrue()
+        assertThat(shouldDismissMini(offsetY = 0f, dockHeight = 100f, velocityY = MINI_DISMISS_VELOCITY)).isTrue()
     }
 }

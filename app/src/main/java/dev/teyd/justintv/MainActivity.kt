@@ -4,11 +4,21 @@ import android.content.BroadcastReceiver
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import dev.teyd.justintv.core.data.ThemeMode
 import dev.teyd.justintv.core.designsystem.theme.JustintvTheme
 import dev.teyd.justintv.core.player.PlaybackGate
+import dev.teyd.justintv.ui.AppearanceViewModel
 import dev.teyd.justintv.ui.JustintvApp
 import javax.inject.Inject
 
@@ -22,7 +32,24 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            JustintvTheme {
+            val appearance = hiltViewModel<AppearanceViewModel>()
+            val mode by appearance.themeMode.collectAsStateWithLifecycle()
+            val dynamicColor by appearance.dynamicColor.collectAsStateWithLifecycle()
+            val darkTheme = when (mode) {
+                ThemeMode.System -> isSystemInDarkTheme()
+                ThemeMode.Light -> false
+                ThemeMode.Dark -> true
+            }
+            // uiMode is handled in place, so the system-bar icon contrast has to follow the
+            // chosen palette explicitly. The default detector would keep the device theme.
+            val barColor = Color.Transparent.toArgb()
+            SideEffect {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(barColor, barColor) { darkTheme },
+                    navigationBarStyle = SystemBarStyle.auto(barColor, barColor) { darkTheme },
+                )
+            }
+            JustintvTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
                 JustintvApp()
             }
         }

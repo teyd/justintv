@@ -7,8 +7,10 @@ import dev.teyd.justintv.core.adfree.DefaultProxies
 import dev.teyd.justintv.core.adfree.ProxyEndpoint
 import dev.teyd.justintv.core.adfree.ProxyHealthChecker
 import dev.teyd.justintv.core.data.AdBlockSettingsStore
+import dev.teyd.justintv.core.data.AppearanceSettingsStore
 import dev.teyd.justintv.core.data.ChatSettingsStore
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
+import dev.teyd.justintv.core.data.ThemeMode
 import javax.inject.Inject
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +39,8 @@ data class SettingsUiState(
     val sevenTv: Boolean = true,
     val bttv: Boolean = true,
     val ffz: Boolean = true,
+    val themeMode: ThemeMode = ThemeMode.System,
+    val dynamicColor: Boolean = false,
 )
 
 @HiltViewModel
@@ -45,6 +49,7 @@ class SettingsViewModel @Inject constructor(
     private val playbackSettings: PlaybackSettingsStore,
     private val adBlockSettings: AdBlockSettingsStore,
     private val chatSettings: ChatSettingsStore,
+    private val appearanceSettings: AppearanceSettingsStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
@@ -52,46 +57,46 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            playbackSettings.backgroundPlayback.collect { enabled ->
-                _state.update { it.copy(backgroundPlayback = enabled) }
-            }
-        }
-        viewModelScope.launch {
-            playbackSettings.pictureInPicture.collect { enabled ->
-                _state.update { it.copy(pictureInPicture = enabled) }
-            }
-        }
-        viewModelScope.launch {
-            adBlockSettings.adBlockEnabled.collect { enabled ->
-                _state.update { it.copy(adBlockEnabled = enabled) }
-            }
-        }
-        viewModelScope.launch {
-            adBlockSettings.disabledProxies.collect { disabled ->
-                _state.update { state ->
-                    state.copy(
-                        proxyStatuses = state.proxyStatuses.map {
-                            it.copy(enabled = it.proxy.host !in disabled)
+            combine(
+                combine(
+                    playbackSettings.backgroundPlayback,
+                    playbackSettings.pictureInPicture,
+                    adBlockSettings.adBlockEnabled,
+                    adBlockSettings.disabledProxies,
+                    appearanceSettings.themeMode,
+                ) { background, pip, adBlock, disabled, theme ->
+                    PlaybackSlice(background, pip, adBlock, disabled, theme)
+                },
+                combine(
+                    chatSettings.recentMessages,
+                    chatSettings.recentMessageLimit,
+                    chatSettings.sevenTv,
+                    chatSettings.bttv,
+                    chatSettings.ffz,
+                ) { recent, limit, seven, bttv, ffz ->
+                    ChatSlice(recent, limit, seven, bttv, ffz, dynamic = false)
+                },
+                appearanceSettings.dynamicColor,
+            ) { playback, chat, dynamic ->
+                playback to chat.copy(dynamic = dynamic)
+            }.collect { (playback, chat) ->
+                _state.update { current ->
+                    current.copy(
+                        backgroundPlayback = playback.background,
+                        pictureInPicture = playback.pip,
+                        adBlockEnabled = playback.adBlock,
+                        themeMode = playback.theme,
+                        proxyStatuses = current.proxyStatuses.map {
+                            it.copy(enabled = it.proxy.host !in playback.disabled)
                         },
+                        recentMessages = chat.recent,
+                        recentMessageLimit = chat.limit,
+                        sevenTv = chat.seven,
+                        bttv = chat.bttv,
+                        ffz = chat.ffz,
+                        dynamicColor = chat.dynamic,
                     )
                 }
-            }
-        }
-        viewModelScope.launch {
-            chatSettings.recentMessages.collect { enabled ->
-                _state.update { it.copy(recentMessages = enabled) }
-            }
-        }
-        viewModelScope.launch {
-            chatSettings.recentMessageLimit.collect { limit ->
-                _state.update { it.copy(recentMessageLimit = limit) }
-            }
-        }
-        viewModelScope.launch {
-            combine(chatSettings.sevenTv, chatSettings.bttv, chatSettings.ffz) { seven, bttv, ffz ->
-                Triple(seven, bttv, ffz)
-            }.collect { (seven, bttv, ffz) ->
-                _state.update { it.copy(sevenTv = seven, bttv = bttv, ffz = ffz) }
             }
         }
         checkProxies()
@@ -133,6 +138,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { chatSettings.setFfz(enabled) }
     }
 
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { appearanceSettings.setThemeMode(mode) }
+    }
+
+    fun setDynamicColor(enabled: Boolean) {
+        viewModelScope.launch { appearanceSettings.setDynamicColor(enabled) }
+    }
+
     /**
      * Checks every proxy at once. Each result appears as soon as it arrives, so one hanging
      * host cannot hold up the others. The health checker's own timeout bounds the slowest.
@@ -169,3 +182,20 @@ class SettingsViewModel @Inject constructor(
         val MESSAGE_LIMIT_OPTIONS = listOf(20, 50, 80, 150)
     }
 }
+
+private data class PlaybackSlice(
+    val background: Boolean,
+    val pip: Boolean,
+    val adBlock: Boolean,
+    val disabled: Set<String>,
+    val theme: ThemeMode,
+)
+
+private data class ChatSlice(
+    val recent: Boolean,
+    val limit: Int,
+    val seven: Boolean,
+    val bttv: Boolean,
+    val ffz: Boolean,
+    val dynamic: Boolean,
+)

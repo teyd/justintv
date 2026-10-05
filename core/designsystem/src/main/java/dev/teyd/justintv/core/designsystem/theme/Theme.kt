@@ -6,12 +6,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Typography
+
+/**
+ * True when the app is drawing the dark palette, whether that came from the system or a setting.
+ * Screens that override system-bar contrast restore from this when they leave.
+ */
+val LocalJustintvDarkTheme = staticCompositionLocalOf { false }
 
 val JustintvTypography = Typography(
     titleLarge = TextStyle(
@@ -50,9 +58,11 @@ fun JustintvTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = JustintvTypography,
-        content = content,
-    )
+    CompositionLocalProvider(LocalJustintvDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = JustintvTypography,
+            content = content,
+        )
+    }
 }

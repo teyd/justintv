@@ -34,35 +34,81 @@ const val WATCH_ARG_LOGIN = "login"
 /** How the player is shown. Hidden means nothing is playing. */
 enum class PlayerChrome { Hidden, Expanded, Mini }
 
-/** Which bottom corner a released mini player snaps to. */
-enum class MiniSide { Left, Right }
-
-/** Release speed (px/s) above which a fling decides the side, regardless of position. */
-internal const val MINI_FLING_VELOCITY = 1_000f
-
-/**
- * A release in the left half snaps left, the right half right; a fast fling wins over the
- * release point so dragging feels like flicking the card toward a corner.
- */
-fun snapMiniSide(releaseX: Float, containerWidth: Float, velocityX: Float = 0f): MiniSide = when {
-    velocityX <= -MINI_FLING_VELOCITY -> MiniSide.Left
-    velocityX >= MINI_FLING_VELOCITY -> MiniSide.Right
-    releaseX < containerWidth / 2f -> MiniSide.Left
-    else -> MiniSide.Right
-}
-
-/** Vertical travel (fraction of the card height) that dismisses the mini player on release. */
+/** Vertical travel (fraction of the dock height) that dismisses the mini player on release. */
 internal const val MINI_DISMISS_FRACTION = 0.33f
 
-/** Downward release speed (px/s) that dismisses even if the card was not dragged far. */
+/** Downward release speed (px/s) that dismisses even if the dock was not dragged far. */
 internal const val MINI_DISMISS_VELOCITY = 1_000f
 
 /** True when a vertical release should dismiss: dragged far enough down, or flicked down. */
-fun shouldDismissMini(offsetY: Float, cardHeight: Float, velocityY: Float): Boolean =
-    offsetY >= cardHeight * MINI_DISMISS_FRACTION || velocityY >= MINI_DISMISS_VELOCITY
+fun shouldDismissMini(offsetY: Float, dockHeight: Float, velocityY: Float): Boolean =
+    offsetY >= dockHeight * MINI_DISMISS_FRACTION || velocityY >= MINI_DISMISS_VELOCITY
+
+/** A rectangle in the overlay's coordinate space, in pixels. */
+data class PlayerFrame(
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float,
+)
+
+/** The 16:9 slot under the status bar, or the landscape slot beside chat. */
+fun expandedPlayerFrame(
+    containerWidth: Float,
+    containerHeight: Float,
+    statusBar: Float,
+    landscape: Boolean,
+    chatWidth: Float,
+): PlayerFrame = if (landscape) {
+    PlayerFrame(
+        left = 0f,
+        top = 0f,
+        width = (containerWidth - chatWidth).coerceAtLeast(0f),
+        height = containerHeight,
+    )
+} else {
+    val width = containerWidth
+    PlayerFrame(
+        left = 0f,
+        top = statusBar,
+        width = width,
+        height = width * 9f / 16f,
+    )
+}
+
+/** The thumbnail at the left of the bottom dock, sitting above the navigation bar. */
+fun dockedVideoFrame(
+    containerHeight: Float,
+    navigationBar: Float,
+    dockHeight: Float,
+): PlayerFrame {
+    val height = dockHeight.coerceAtLeast(0f)
+    return PlayerFrame(
+        left = 0f,
+        top = containerHeight - navigationBar - height,
+        width = height * 16f / 9f,
+        height = height,
+    )
+}
+
+fun lerpFrame(from: PlayerFrame, to: PlayerFrame, fraction: Float): PlayerFrame {
+    val t = fraction.coerceIn(0f, 1f)
+    return PlayerFrame(
+        left = lerp(from.left, to.left, t),
+        top = lerp(from.top, to.top, t),
+        width = lerp(from.width, to.width, t),
+        height = lerp(from.height, to.height, t),
+    )
+}
+
+private fun lerp(start: Float, stop: Float, fraction: Float): Float = start + (stop - start) * fraction
 
 data class WatchUiState(
     val channelLogin: String = "",
+    val displayName: String = "",
+    val title: String = "",
+    /** Landscape chat column. The overlay sizes the video to leave this room. */
+    val landscapeChat: Boolean = false,
     val isLoading: Boolean = true,
     val status: String = "",
     /** Full description, for example "Proxy · eu2.luminous.dev". */
@@ -78,9 +124,9 @@ data class WatchUiState(
 /**
  * Owns the player for the whole activity, not one screen.
  *
- * Leaving the watch screen minimises into a corner instead of stopping. [close] is what
- * actually stops playback. Scope this view model to the activity, or the player dies with
- * the watch destination.
+ * Leaving the watch screen docks the same video surface at the bottom instead of stopping.
+ * [close] is what actually stops playback. Scope this view model to the activity, or the
+ * player dies with the watch destination.
  */
 @HiltViewModel
 class WatchViewModel @Inject constructor(
@@ -100,9 +146,6 @@ class WatchViewModel @Inject constructor(
 
     private val _chrome = MutableStateFlow(PlayerChrome.Hidden)
     val chrome: StateFlow<PlayerChrome> = _chrome.asStateFlow()
-
-    private val _miniSide = MutableStateFlow(MiniSide.Right)
-    val miniSide: StateFlow<MiniSide> = _miniSide.asStateFlow()
 
     private var currentMethod: PlaybackMethod? = null
     /** The in-flight source resolution; starting a new one supersedes it. */
@@ -126,20 +169,35 @@ class WatchViewModel @Inject constructor(
         if (login.isNotBlank()) resolveAndPlay()
     }
 
-    /** Starts or returns to [channel]. Same channel keeps the current stream. */
-    fun open(channel: String) {
+    /**
+     * Starts or returns to [channel]. Same channel keeps the current stream.
+     *
+     * [displayName] and [title] are what the dock shows. A later open of the same channel
+     * that omits them keeps the names already stored, so the watch route can call this with
+     * only the login from its argument.
+     */
+    fun open(channel: String, displayName: String = "", title: String = "") {
         _chrome.value = PlayerChrome.Expanded
-        if (channel.isBlank() || channel == login && _state.value.method.isNotEmpty()) return
+        val sameStream = channel == login && _state.value.method.isNotEmpty()
+        val name = displayName.ifBlank { if (sameStream) _state.value.displayName else channel }
+        val streamTitle = title.ifBlank { if (sameStream) _state.value.title else "" }
+        if (channel.isBlank() || sameStream) {
+            _state.update { it.copy(displayName = name.ifBlank { channel }, title = streamTitle) }
+            return
+        }
         login = channel
         errorRetries = 0
         adBreakHandled = false
-        _state.value = WatchUiState(channelLogin = channel)
+        _state.value = WatchUiState(
+            channelLogin = channel,
+            displayName = name.ifBlank { channel },
+            title = streamTitle,
+        )
         resolveAndPlay()
     }
 
-    fun minimize(side: MiniSide = _miniSide.value) {
+    fun minimize() {
         if (_state.value.channelLogin.isBlank()) return
-        _miniSide.value = side
         _chrome.value = PlayerChrome.Mini
     }
 
@@ -148,8 +206,8 @@ class WatchViewModel @Inject constructor(
         _chrome.value = PlayerChrome.Expanded
     }
 
-    fun setMiniSide(side: MiniSide) {
-        _miniSide.value = side
+    fun setLandscapeChat(visible: Boolean) {
+        _state.update { it.copy(landscapeChat = visible) }
     }
 
     /** Stops playback and removes the mini player. */

@@ -34,7 +34,7 @@ fun StreamList(
     state: LoadState<LiveStream>,
     emptyText: String,
     onRefresh: () -> Unit,
-    onWatch: (String) -> Unit,
+    onWatch: (LiveStream) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
@@ -62,7 +62,7 @@ fun StreamList(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.items, key = { it.id }) { stream ->
-                    StreamCard(stream = stream, onClick = { onWatch(stream.login) })
+                    StreamCard(stream = stream, onClick = { onWatch(stream) })
                 }
             }
         }

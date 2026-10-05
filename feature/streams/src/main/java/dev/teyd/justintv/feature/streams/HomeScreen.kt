@@ -29,7 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.teyd.justintv.core.model.LiveStream
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.teyd.justintv.core.model.Game
@@ -63,9 +65,10 @@ fun homeTabs(isLoggedIn: Boolean): List<HomeTab> =
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
-    onWatch: (String) -> Unit,
+    onWatch: (LiveStream) -> Unit,
     onOpenGame: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    extraBottomPadding: Dp = 0.dp,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -126,7 +129,9 @@ fun HomeScreen(
                         emptyText = "Nobody is live for this filter",
                         onRefresh = viewModel::refreshLive,
                         onWatch = onWatch,
-                        contentPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
+                        contentPadding = PaddingValues(
+                            bottom = padding.calculateBottomPadding() + extraBottomPadding,
+                        ),
                     )
 
                     HomeTab.Categories -> CategoriesTab(
@@ -137,7 +142,7 @@ fun HomeScreen(
                             start = 8.dp,
                             top = 8.dp,
                             end = 8.dp,
-                            bottom = 8.dp + padding.calculateBottomPadding(),
+                            bottom = 8.dp + padding.calculateBottomPadding() + extraBottomPadding,
                         ),
                     )
 

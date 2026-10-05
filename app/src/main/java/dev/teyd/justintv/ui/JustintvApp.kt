@@ -19,7 +19,10 @@ import dev.teyd.justintv.feature.streams.GAME_ARG_NAME
 import dev.teyd.justintv.feature.streams.GameScreen
 import dev.teyd.justintv.feature.streams.HomeScreen
 import dev.teyd.justintv.core.player.VideoPlayer
-import dev.teyd.justintv.feature.watch.MiniPlayer
+import androidx.compose.ui.unit.dp
+import dev.teyd.justintv.core.model.LiveStream
+import dev.teyd.justintv.feature.watch.PlaybackDockHeight
+import dev.teyd.justintv.feature.watch.PlaybackOverlay
 import dev.teyd.justintv.feature.watch.PlayerChrome
 import dev.teyd.justintv.feature.watch.WATCH_ARG_LOGIN
 import dev.teyd.justintv.feature.watch.WatchScreen
@@ -45,6 +48,9 @@ fun JustintvApp() {
         return
     }
 
+    val docked = chrome == PlayerChrome.Mini && playing.channelLogin.isNotBlank()
+    val dockPadding = if (docked) PlaybackDockHeight else 0.dp
+
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
@@ -52,9 +58,10 @@ fun JustintvApp() {
         ) {
             composable(ROUTE_HOME) {
                 HomeScreen(
-                    onWatch = { login -> navController.navigate("$ROUTE_WATCH/${Uri.encode(login)}") { launchSingleTop = true } },
+                    onWatch = { stream -> watch(playback, navController, stream) },
                     onOpenGame = { name -> navController.navigate("$ROUTE_GAME/${Uri.encode(name)}") { launchSingleTop = true } },
                     onOpenSettings = { navController.navigate(ROUTE_SETTINGS) { launchSingleTop = true } },
+                    extraBottomPadding = dockPadding,
                 )
             }
             composable(
@@ -63,7 +70,8 @@ fun JustintvApp() {
             ) {
                 GameScreen(
                     onBack = { navController.popBackStack() },
-                    onWatch = { login -> navController.navigate("$ROUTE_WATCH/${Uri.encode(login)}") { launchSingleTop = true } },
+                    onWatch = { stream -> watch(playback, navController, stream) },
+                    extraBottomPadding = dockPadding,
                 )
             }
             composable(
@@ -73,10 +81,7 @@ fun JustintvApp() {
                 val login = entry.arguments?.getString(WATCH_ARG_LOGIN).orEmpty()
                 WatchScreen(
                     channelLogin = login,
-                    onMinimize = {
-                        playback.minimize()
-                        navController.popBackStack()
-                    },
+                    onMinimize = { minimize(playback, navController) },
                 )
             }
             composable(ROUTE_SETTINGS) {
@@ -84,14 +89,33 @@ fun JustintvApp() {
             }
         }
 
-        MiniPlayer(
+        PlaybackOverlay(
             viewModel = playback,
-            visible = chrome == PlayerChrome.Mini && playing.channelLogin.isNotBlank(),
             onExpand = {
                 playback.expand()
-                navController.navigate("$ROUTE_WATCH/${Uri.encode(playing.channelLogin)}") { launchSingleTop = true }
+                navController.navigate("$ROUTE_WATCH/${Uri.encode(playing.channelLogin)}") {
+                    launchSingleTop = true
+                }
             },
+            onMinimize = { minimize(playback, navController) },
             modifier = Modifier.zIndex(1f),
         )
     }
+}
+
+private fun minimize(
+    playback: dev.teyd.justintv.feature.watch.WatchViewModel,
+    navController: androidx.navigation.NavHostController,
+) {
+    playback.minimize()
+    navController.popBackStack()
+}
+
+private fun watch(
+    playback: dev.teyd.justintv.feature.watch.WatchViewModel,
+    navController: androidx.navigation.NavHostController,
+    stream: LiveStream,
+) {
+    playback.open(stream.login, stream.displayName, stream.title)
+    navController.navigate("$ROUTE_WATCH/${Uri.encode(stream.login)}") { launchSingleTop = true }
 }

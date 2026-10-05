@@ -63,7 +63,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import dev.teyd.justintv.core.player.PlayerHolder
 import dev.teyd.justintv.core.player.PlayerStats
-import dev.teyd.justintv.core.player.VideoPlayer
 import dev.teyd.justintv.core.player.VideoQuality
 import kotlinx.coroutines.delay
 
@@ -73,7 +72,8 @@ private const val CONTROLS_HIDE_DELAY_MS = 3_000L
 private const val STATS_REFRESH_MS = 500L
 
 /**
- * The video, with a deliberately small set of controls drawn on top.
+ * Controls drawn on top of the video. The surface itself lives in the playback overlay, so this
+ * pane is transparent and never owns a second PlayerView.
  *
  * Always visible: a pill with the live delay and the source (the proxy, or how the stream is
  * being served). Tap the video for pause, quality and the stats panel. There is no seek bar,
@@ -125,7 +125,6 @@ fun PlayerPane(
 
     Box(
         modifier = modifier
-            .background(Color.Black)
             .pointerInput(onBack) {
                 detectVerticalDragGestures(
                     onDragEnd = {
@@ -146,8 +145,6 @@ fun PlayerPane(
                 )
             },
     ) {
-        VideoPlayer(player = holder, modifier = Modifier.fillMaxSize())
-
         // Hidden until the viewer presses the stats glyph: the source and live delay are
         // geek details, not part of the default viewing surface.
         if (showStats) {
