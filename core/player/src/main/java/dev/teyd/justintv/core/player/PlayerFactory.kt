@@ -1,8 +1,10 @@
 package dev.teyd.justintv.core.player
 
 import android.content.Context
+import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -18,6 +20,7 @@ import okhttp3.OkHttpClient
  * One OkHttp client is shared with the rest of the app so video segment traffic reuses the
  * same connection pool as API calls.
  */
+@OptIn(UnstableApi::class)
 class PlayerFactory(
     private val context: Context,
     private val httpClient: OkHttpClient,

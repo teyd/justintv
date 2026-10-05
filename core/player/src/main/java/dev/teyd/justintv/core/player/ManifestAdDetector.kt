@@ -1,6 +1,8 @@
 package dev.teyd.justintv.core.player
 
+import androidx.annotation.OptIn
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.hls.HlsManifest
 import androidx.media3.exoplayer.hls.playlist.HlsMediaPlaylist
 import dev.teyd.justintv.core.adfree.AdMarkerRules
@@ -11,6 +13,7 @@ import dev.teyd.justintv.core.adfree.AdMarkerRules
  * This is the live counterpart of the pre-flight playlist check: Twitch can start a mid-roll
  * at any time, which only shows up here. Same rules object, so both checks stay in sync.
  */
+@OptIn(UnstableApi::class)
 object ManifestAdDetector {
     fun hasAdMarkers(manifest: HlsManifest?): Boolean {
         val playlist = manifest?.mediaPlaylist ?: return false

@@ -1,8 +1,10 @@
 package dev.teyd.justintv.core.player
 
+import androidx.annotation.OptIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 
@@ -16,6 +18,7 @@ import androidx.media3.ui.PlayerView
  * and rendering behave predictably on every device.
  */
 @Composable
+@OptIn(UnstableApi::class)
 fun VideoPlayer(
     player: PlayerHolder,
     modifier: Modifier = Modifier,

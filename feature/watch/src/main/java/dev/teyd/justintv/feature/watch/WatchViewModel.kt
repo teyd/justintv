@@ -1,10 +1,12 @@
 package dev.teyd.justintv.feature.watch
 
+import androidx.annotation.OptIn
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.hls.HlsManifest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.teyd.justintv.core.adfree.PlaybackMethod
@@ -479,6 +481,7 @@ class WatchViewModel
          * Called whenever the player's manifest changes. If the live edge is inside an ad and the
          * current source was a proxy, that proxy is dropped and playback restarts elsewhere.
          */
+        @OptIn(UnstableApi::class)
         private fun onPlayerTimelineChanged() {
             val manifest = playerHolder.exoPlayer.currentManifest as? HlsManifest
             val inAd =

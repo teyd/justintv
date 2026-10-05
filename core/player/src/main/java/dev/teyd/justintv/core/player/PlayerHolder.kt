@@ -1,11 +1,13 @@
 package dev.teyd.justintv.core.player
 
+import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.MediaSource
@@ -56,6 +58,7 @@ data class PlayerStats(
  * The holder also keeps the door open for a MediaSessionService-backed player in M5 without
  * touching screen code: only this type changes.
  */
+@OptIn(UnstableApi::class)
 class PlayerHolder(
     val exoPlayer: ExoPlayer,
     private val mediaSourceFor: (String) -> MediaSource,
