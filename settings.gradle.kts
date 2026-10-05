@@ -24,6 +24,7 @@ rootProject.name = "justintv"
 
 include(":app")
 include(":core:adfree")
+include(":core:player")
 include(":core:network")
 include(":core:designsystem")
 include(":feature:streams")
