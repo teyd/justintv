@@ -1,8 +1,6 @@
 package dev.teyd.justintv.core.network
 
 import dev.teyd.justintv.core.model.LiveStream
-import java.net.UnknownHostException
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -14,18 +12,28 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.net.UnknownHostException
+import kotlin.coroutines.cancellation.CancellationException
 
 /** What the account screen renders. The token is not part of this. */
 sealed interface AuthState {
     data object LoggedOut : AuthState
-    data class Pending(val userCode: String, val verificationUri: String) : AuthState
+
+    data class Pending(
+        val userCode: String,
+        val verificationUri: String,
+    ) : AuthState
+
     data class LoggedIn(
         val userId: String,
         val login: String,
         val displayName: String,
         val canChat: Boolean = false,
     ) : AuthState
-    data class Failed(val message: String) : AuthState
+
+    data class Failed(
+        val message: String,
+    ) : AuthState
 }
 
 /**
@@ -53,38 +61,46 @@ class TwitchSession(
 
     fun start(scopes: String = TwitchIdentityApi.SCOPES) {
         pollJob?.cancel()
-        pollJob = scope.launch {
-            if (clientId.isBlank()) {
-                _state.value = AuthState.Failed("This build has no Twitch client ID.")
-                return@launch
-            }
-            try {
-                val code = requestDeviceCode(scopes)
-                _state.value = AuthState.Pending(code.userCode, code.verificationUri)
-                val deadline = System.currentTimeMillis() + code.expiresInSeconds * 1000L
-                var interval = code.intervalSeconds
-                while (System.currentTimeMillis() < deadline) {
-                    delay(interval * 1000L)
-                    when (val poll = api.pollDeviceCode(clientId, scopes, code.deviceCode)) {
-                        DevicePoll.Pending -> Unit
-                        DevicePoll.SlowDown -> interval += SLOW_DOWN_SECONDS
-                        is DevicePoll.Rejected -> {
-                            _state.value = AuthState.Failed(poll.message)
-                            return@launch
-                        }
-                        is DevicePoll.Granted -> {
-                            finish(poll.grant)
-                            return@launch
+        pollJob =
+            scope.launch {
+                if (clientId.isBlank()) {
+                    _state.value = AuthState.Failed("This build has no Twitch client ID.")
+                    return@launch
+                }
+                try {
+                    val code = requestDeviceCode(scopes)
+                    _state.value = AuthState.Pending(code.userCode, code.verificationUri)
+                    val deadline = System.currentTimeMillis() + code.expiresInSeconds * 1000L
+                    var interval = code.intervalSeconds
+                    while (System.currentTimeMillis() < deadline) {
+                        delay(interval * 1000L)
+                        when (val poll = api.pollDeviceCode(clientId, scopes, code.deviceCode)) {
+                            DevicePoll.Pending -> {
+                                Unit
+                            }
+
+                            DevicePoll.SlowDown -> {
+                                interval += SLOW_DOWN_SECONDS
+                            }
+
+                            is DevicePoll.Rejected -> {
+                                _state.value = AuthState.Failed(poll.message)
+                                return@launch
+                            }
+
+                            is DevicePoll.Granted -> {
+                                finish(poll.grant)
+                                return@launch
+                            }
                         }
                     }
+                    _state.value = AuthState.Failed("That code expired. Try again.")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _state.value = AuthState.Failed(signInFailure(e))
                 }
-                _state.value = AuthState.Failed("That code expired. Try again.")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _state.value = AuthState.Failed(signInFailure(e))
             }
-        }
     }
 
     /** Re-consent so the token can send chat. Follows stay included. */
@@ -159,27 +175,32 @@ class TwitchSession(
         accessToken: String = stored?.accessToken.orEmpty(),
         scopes: List<String> = stored?.scopes.orEmpty(),
     ) {
-        val session = StoredSession(
-            accessToken = accessToken,
-            refreshToken = refreshToken.ifBlank { stored?.refreshToken.orEmpty() },
-            expiresAtEpochMs = expiresAtEpochMs,
-            userId = user.id,
-            login = user.login,
-            displayName = user.displayName,
-            scopes = scopes,
-        )
+        val session =
+            StoredSession(
+                accessToken = accessToken,
+                refreshToken = refreshToken.ifBlank { stored?.refreshToken.orEmpty() },
+                expiresAtEpochMs = expiresAtEpochMs,
+                userId = user.id,
+                login = user.login,
+                displayName = user.displayName,
+                scopes = scopes,
+            )
         vault.save(session)
         stored = session
         _state.value = loggedIn(user.id, user.login, user.displayName, scopes)
     }
 
-    private fun loggedIn(userId: String, login: String, displayName: String, scopes: List<String>) =
-        AuthState.LoggedIn(
-            userId = userId,
-            login = login,
-            displayName = displayName,
-            canChat = scopes.any { it.equals("chat:edit", ignoreCase = true) },
-        )
+    private fun loggedIn(
+        userId: String,
+        login: String,
+        displayName: String,
+        scopes: List<String>,
+    ) = AuthState.LoggedIn(
+        userId = userId,
+        login = login,
+        displayName = displayName,
+        canChat = scopes.any { it.equals("chat:edit", ignoreCase = true) },
+    )
 
     private suspend fun freshAccessToken(): String? {
         val current = stored ?: vault.load()?.also { stored = it } ?: return null
@@ -189,33 +210,35 @@ class TwitchSession(
         return refreshLocked()
     }
 
-    private suspend fun refreshLocked(): String? = refreshLock.withLock {
-        val current = stored ?: return null
-        if (current.refreshToken.isBlank()) {
-            drop()
-            return null
+    private suspend fun refreshLocked(): String? =
+        refreshLock.withLock {
+            val current = stored ?: return null
+            if (current.refreshToken.isBlank()) {
+                drop()
+                return null
+            }
+            try {
+                val grant = api.refresh(clientId, current.refreshToken)
+                val expiresAt = System.currentTimeMillis() + grant.expiresInSeconds * 1000L
+                val scopes = grant.scopes.ifEmpty { current.scopes }
+                val updated =
+                    current.copy(
+                        accessToken = grant.accessToken,
+                        refreshToken = grant.refreshToken.ifBlank { current.refreshToken },
+                        expiresAtEpochMs = expiresAt,
+                        scopes = scopes,
+                    )
+                vault.save(updated)
+                stored = updated
+                _state.value = loggedIn(updated.userId, updated.login, updated.displayName, scopes)
+                updated.accessToken
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                drop()
+                null
+            }
         }
-        try {
-            val grant = api.refresh(clientId, current.refreshToken)
-            val expiresAt = System.currentTimeMillis() + grant.expiresInSeconds * 1000L
-            val scopes = grant.scopes.ifEmpty { current.scopes }
-            val updated = current.copy(
-                accessToken = grant.accessToken,
-                refreshToken = grant.refreshToken.ifBlank { current.refreshToken },
-                expiresAtEpochMs = expiresAt,
-                scopes = scopes,
-            )
-            vault.save(updated)
-            stored = updated
-            _state.value = loggedIn(updated.userId, updated.login, updated.displayName, scopes)
-            updated.accessToken
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            drop()
-            null
-        }
-    }
 
     private suspend fun drop() {
         vault.clear()
@@ -244,10 +267,11 @@ class TwitchSession(
             return false
         }
 
-        fun signInFailure(error: Exception): String = if (isDnsFailure(error)) {
-            "Couldn't reach Twitch. Check the connection and try again."
-        } else {
-            error.message ?: "Could not sign in"
-        }
+        fun signInFailure(error: Exception): String =
+            if (isDnsFailure(error)) {
+                "Couldn't reach Twitch. Check the connection and try again."
+            } else {
+                error.message ?: "Could not sign in"
+            }
     }
 }

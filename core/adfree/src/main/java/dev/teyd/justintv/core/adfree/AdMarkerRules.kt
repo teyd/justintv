@@ -8,7 +8,6 @@ package dev.teyd.justintv.core.adfree
  * markers as Media3 interstitials.
  */
 object AdMarkerRules {
-
     /** Segment titles used by Twitch's ad servers. */
     val AD_SEGMENT_TITLES = setOf("amazon", "adform", "dcm")
 

@@ -7,7 +7,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /** A directory request failed for a reason the UI should show. */
-class DirectoryException(message: String) : Exception(message)
+class DirectoryException(
+    message: String,
+) : Exception(message)
 
 @Serializable
 internal data class GqlResponse<T>(
@@ -16,13 +18,19 @@ internal data class GqlResponse<T>(
 )
 
 @Serializable
-internal data class GqlError(val message: String = "")
+internal data class GqlError(
+    val message: String = "",
+)
 
 @Serializable
-internal data class Connection<T>(val edges: List<Edge<T>> = emptyList())
+internal data class Connection<T>(
+    val edges: List<Edge<T>> = emptyList(),
+)
 
 @Serializable
-internal data class Edge<T>(val node: T)
+internal data class Edge<T>(
+    val node: T,
+)
 
 @Serializable
 internal data class StreamNode(
@@ -44,7 +52,9 @@ internal data class BroadcasterNode(
 )
 
 @Serializable
-internal data class BroadcastSettingsNode(val language: String? = null)
+internal data class BroadcastSettingsNode(
+    val language: String? = null,
+)
 
 @Serializable
 internal data class GameNode(
@@ -56,42 +66,58 @@ internal data class GameNode(
 )
 
 @Serializable
-internal data class TopStreamsData(val streams: Connection<StreamNode>? = null)
+internal data class TopStreamsData(
+    val streams: Connection<StreamNode>? = null,
+)
 
 @Serializable
-internal data class TopGamesData(val games: Connection<GameNode>? = null)
+internal data class TopGamesData(
+    val games: Connection<GameNode>? = null,
+)
 
 @Serializable
-internal data class ChannelStreamData(val user: ChannelUser? = null)
+internal data class ChannelStreamData(
+    val user: ChannelUser? = null,
+)
 
 @Serializable
-internal data class ChannelUser(val stream: ChannelStream? = null)
+internal data class ChannelUser(
+    val stream: ChannelStream? = null,
+)
 
 @Serializable
-internal data class ChannelStream(val viewersCount: Int = 0, val createdAt: String? = null)
+internal data class ChannelStream(
+    val viewersCount: Int = 0,
+    val createdAt: String? = null,
+)
 
 /** What the player shows about a live channel, refreshed while it plays. */
-data class ChannelLive(val viewers: Int, val startedAt: String?)
+data class ChannelLive(
+    val viewers: Int,
+    val startedAt: String?,
+)
 
 @Serializable
-internal data class GameStreamsData(val game: GameWithStreams? = null)
+internal data class GameStreamsData(
+    val game: GameWithStreams? = null,
+)
 
 @Serializable
-internal data class GameWithStreams(val streams: Connection<StreamNode>? = null)
+internal data class GameWithStreams(
+    val streams: Connection<StreamNode>? = null,
+)
 
 /** Turns GraphQL responses into app models. Pure functions, covered by unit tests. */
 object DirectoryParser {
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            coerceInputValues = true
+        }
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        coerceInputValues = true
-    }
+    fun parseTopStreams(body: String): List<LiveStream> = decode<TopStreamsData>(body).streams.toLiveStreams()
 
-    fun parseTopStreams(body: String): List<LiveStream> =
-        decode<TopStreamsData>(body).streams.toLiveStreams()
-
-    fun parseGameStreams(body: String): List<LiveStream> =
-        decode<GameStreamsData>(body).game?.streams.toLiveStreams()
+    fun parseGameStreams(body: String): List<LiveStream> = decode<GameStreamsData>(body).game?.streams.toLiveStreams()
 
     /** Null when the channel is offline or unknown. */
     fun parseChannelLive(body: String): ChannelLive? =
@@ -111,11 +137,12 @@ object DirectoryParser {
         }
 
     private inline fun <reified T> decode(body: String): T {
-        val response = try {
-            json.decodeFromString<GqlResponse<T>>(body)
-        } catch (e: Exception) {
-            throw DirectoryException("Unreadable response from Twitch")
-        }
+        val response =
+            try {
+                json.decodeFromString<GqlResponse<T>>(body)
+            } catch (e: Exception) {
+                throw DirectoryException("Unreadable response from Twitch")
+            }
         response.errors?.firstOrNull()?.let { error ->
             throw DirectoryException(
                 if (error.message.contains("integrity", ignoreCase = true)) {
@@ -150,7 +177,12 @@ object DirectoryParser {
 /** Source of browse data. An interface so view models can be tested with fakes. */
 interface DirectorySource {
     suspend fun topStreams(languages: Set<String>): List<LiveStream>
-    suspend fun gameStreams(gameName: String, languages: Set<String>): List<LiveStream>
+
+    suspend fun gameStreams(
+        gameName: String,
+        languages: Set<String>,
+    ): List<LiveStream>
+
     suspend fun topGames(): List<Game>
 
     /** Current viewers and start time, or null when the channel is not live. */
@@ -158,24 +190,28 @@ interface DirectorySource {
 }
 
 /** Anonymous directory over GraphQL. See [DirectoryQueries] for its limits. */
-class TwitchDirectoryApi(private val gql: GqlClient) : DirectorySource {
-
+class TwitchDirectoryApi(
+    private val gql: GqlClient,
+) : DirectorySource {
     override suspend fun topStreams(languages: Set<String>): List<LiveStream> =
         DirectoryParser.parseTopStreams(request(DirectoryQueries.topStreams(languages)))
 
-    override suspend fun gameStreams(gameName: String, languages: Set<String>): List<LiveStream> =
-        DirectoryParser.parseGameStreams(request(DirectoryQueries.gameStreams(gameName, languages)))
+    override suspend fun gameStreams(
+        gameName: String,
+        languages: Set<String>,
+    ): List<LiveStream> = DirectoryParser.parseGameStreams(request(DirectoryQueries.gameStreams(gameName, languages)))
 
-    override suspend fun topGames(): List<Game> =
-        DirectoryParser.parseTopGames(request(DirectoryQueries.topGames()))
+    override suspend fun topGames(): List<Game> = DirectoryParser.parseTopGames(request(DirectoryQueries.topGames()))
 
     override suspend fun channelLive(login: String): ChannelLive? =
         DirectoryParser.parseChannelLive(request(DirectoryQueries.channelStream(login)))
 
     private suspend fun request(query: String): String {
-        val body = kotlinx.serialization.json.buildJsonObject {
-            put("query", kotlinx.serialization.json.JsonPrimitive(query))
-        }.toString()
+        val body =
+            kotlinx.serialization.json
+                .buildJsonObject {
+                    put("query", kotlinx.serialization.json.JsonPrimitive(query))
+                }.toString()
         return try {
             gql.post(body)
         } catch (e: PlaybackException) {

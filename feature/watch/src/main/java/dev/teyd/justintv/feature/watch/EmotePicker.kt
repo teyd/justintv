@@ -61,7 +61,10 @@ import kotlinx.coroutines.launch
 internal val PickerSourceOrder = listOf(EmoteSource.SevenTv, EmoteSource.Bttv, EmoteSource.Ffz)
 
 /** One provider's emotes, alphabetical. */
-internal data class EmoteSection(val source: EmoteSource, val emotes: List<Emote>)
+internal data class EmoteSection(
+    val source: EmoteSource,
+    val emotes: List<Emote>,
+)
 
 internal fun sectionsOf(emotes: List<Emote>): List<EmoteSection> {
     val bySource = emotes.groupBy { it.source }
@@ -82,16 +85,21 @@ internal fun headerIndices(sections: List<EmoteSection>): List<Int> {
  * Which section the All grid is showing at the top. Null right at the very top, which is the
  * All tab itself; the first scroll puts the first provider's tab under the highlight.
  */
-internal fun sectionAtTop(headers: List<Int>, firstVisibleIndex: Int, firstVisibleOffset: Int): Int? {
+internal fun sectionAtTop(
+    headers: List<Int>,
+    firstVisibleIndex: Int,
+    firstVisibleOffset: Int,
+): Int? {
     if (headers.isEmpty() || (firstVisibleIndex == 0 && firstVisibleOffset == 0)) return null
     return headers.indexOfLast { it <= firstVisibleIndex }.coerceAtLeast(0)
 }
 
-internal fun EmoteSource.pickerLabel(): String = when (this) {
-    EmoteSource.SevenTv -> "7TV"
-    EmoteSource.Bttv -> "BTTV"
-    EmoteSource.Ffz -> "FFZ"
-}
+internal fun EmoteSource.pickerLabel(): String =
+    when (this) {
+        EmoteSource.SevenTv -> "7TV"
+        EmoteSource.Bttv -> "BTTV"
+        EmoteSource.Ffz -> "FFZ"
+    }
 
 /**
  * The emote sheet.
@@ -111,9 +119,10 @@ internal fun EmotePicker(
     var query by rememberSaveable { mutableStateOf("") }
     val sections = remember(emotes, query) { sectionsOf(filterEmotes(emotes, null, query)) }
     // Tabs come from what exists, not from what the search matches, so they do not jump around.
-    val tabs = remember(emotes) {
-        listOf<EmoteSource?>(null) + PickerSourceOrder.filter { source -> emotes.any { it.source == source } }
-    }
+    val tabs =
+        remember(emotes) {
+            listOf<EmoteSource?>(null) + PickerSourceOrder.filter { source -> emotes.any { it.source == source } }
+        }
     val pager = rememberPagerState(pageCount = { tabs.size })
     val allGrid = rememberLazyGridState()
     val scope = rememberCoroutineScope()
@@ -131,10 +140,11 @@ internal fun EmotePicker(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(LocalConfiguration.current.screenHeightDp.dp * SHEET_HEIGHT_FRACTION)
-                .navigationBarsPadding(),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(LocalConfiguration.current.screenHeightDp.dp * SHEET_HEIGHT_FRACTION)
+                    .navigationBarsPadding(),
         ) {
             SearchField(query = query, onQueryChange = { query = it })
 
@@ -177,9 +187,10 @@ internal fun EmotePicker(
             ) { page ->
                 val source = tabs.getOrNull(page)
                 // Remembered: a fresh list on every recomposition would stop the grid skipping.
-                val pageSections = remember(sections, source) {
-                    if (source == null) sections else sections.filter { it.source == source }
-                }
+                val pageSections =
+                    remember(sections, source) {
+                        if (source == null) sections else sections.filter { it.source == source }
+                    }
                 EmoteGrid(
                     sections = pageSections,
                     showHeaders = source == null,
@@ -192,11 +203,15 @@ internal fun EmotePicker(
 }
 
 @Composable
-private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
+private fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
@@ -208,9 +223,10 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 10.dp, vertical = 12.dp),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .padding(horizontal = 10.dp, vertical = 12.dp),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 singleLine = true,
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -294,24 +310,32 @@ private fun EmoteGrid(
  * An animated file can be hundreds of kilobytes. The grid wants the still frame at thumbnail
  * size.
  */
-internal fun thumbnailRequest(context: Context, emote: Emote): ImageRequest =
-    ImageRequest.Builder(context)
+internal fun thumbnailRequest(
+    context: Context,
+    emote: Emote,
+): ImageRequest =
+    ImageRequest
+        .Builder(context)
         .data(emote.stillUrl ?: emote.url)
         .size(THUMBNAIL_PX, THUMBNAIL_PX)
         .build()
 
 @Composable
-private fun EmoteCell(emote: Emote, onPick: (String) -> Unit) {
+private fun EmoteCell(
+    emote: Emote,
+    onPick: (String) -> Unit,
+) {
     val context = LocalContext.current
     val request = remember(emote.stillUrl, emote.url) { thumbnailRequest(context, emote) }
     // No ripple and no clip: they cost a layer per cell while scrolling, and picking an emote
     // closes the sheet, which is feedback enough.
     Box(
-        modifier = Modifier
-            .size(CELL_SIZE)
-            .clickable(interactionSource = null, indication = null, onClickLabel = emote.name) {
-                onPick(emote.name)
-            },
+        modifier =
+            Modifier
+                .size(CELL_SIZE)
+                .clickable(interactionSource = null, indication = null, onClickLabel = emote.name) {
+                    onPick(emote.name)
+                },
         contentAlignment = Alignment.Center,
     ) {
         AsyncImage(

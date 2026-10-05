@@ -4,18 +4,28 @@ import dev.teyd.justintv.core.network.model.PlaybackAccessToken
 import okhttp3.OkHttpClient
 
 /** Raised for every playback pipeline failure the UI needs to distinguish. */
-sealed class PlaybackException(message: String) : Exception(message) {
+sealed class PlaybackException(
+    message: String,
+) : Exception(message) {
     /** The channel is offline, banned, or does not exist. */
-    class ChannelUnavailable(message: String) : PlaybackException(message)
+    class ChannelUnavailable(
+        message: String,
+    ) : PlaybackException(message)
 
     /** Twitch rejected the request, for example because a persisted query hash expired. */
-    class RequestRejected(message: String) : PlaybackException(message)
+    class RequestRejected(
+        message: String,
+    ) : PlaybackException(message)
 
     /** The device could not reach Twitch. */
-    class Network(message: String) : PlaybackException(message)
+    class Network(
+        message: String,
+    ) : PlaybackException(message)
 
     /** A playlist was fetched but is not usable HLS. */
-    class InvalidPlaylist(message: String) : PlaybackException(message)
+    class InvalidPlaylist(
+        message: String,
+    ) : PlaybackException(message)
 }
 
 /**
@@ -28,8 +38,8 @@ class TwitchPlaybackApi(
     httpClient: OkHttpClient,
     clientId: String = TwitchEndpoints.WEB_CLIENT_ID,
     gqlUrl: String = TwitchEndpoints.GQL_URL,
-) : TextFetcher, PlaybackTokenSource {
-
+) : TextFetcher,
+    PlaybackTokenSource {
     private val gql = GqlClient(httpClient, clientId, gqlUrl)
     private val playlists = OkHttpTextFetcher(httpClient)
 
@@ -56,20 +66,26 @@ class TwitchPlaybackApi(
 
     override suspend fun fetchText(url: String): String = playlists.fetchText(url)
 
-    override suspend fun directStreamUrl(login: String, playerType: String): String {
+    override suspend fun directStreamUrl(
+        login: String,
+        playerType: String,
+    ): String {
         val token = playbackAccessToken(login, playerType)
         return UsherUrlBuilder.streamUrl(login, token, platform = "web")
     }
 
     private fun PlaybackTokenParser.FailureReason.toException(message: String): PlaybackException =
         when (this) {
-            PlaybackTokenParser.FailureReason.OfflineOrUnknownChannel ->
+            PlaybackTokenParser.FailureReason.OfflineOrUnknownChannel -> {
                 PlaybackException.ChannelUnavailable("Channel is offline or does not exist")
+            }
 
-            PlaybackTokenParser.FailureReason.GraphQlError ->
+            PlaybackTokenParser.FailureReason.GraphQlError -> {
                 PlaybackException.RequestRejected(message)
+            }
 
-            PlaybackTokenParser.FailureReason.Malformed ->
+            PlaybackTokenParser.FailureReason.Malformed -> {
                 PlaybackException.RequestRejected("Unreadable GraphQL response: $message")
+            }
         }
 }

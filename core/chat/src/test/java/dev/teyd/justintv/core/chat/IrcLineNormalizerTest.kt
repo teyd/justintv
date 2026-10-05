@@ -4,7 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class IrcLineNormalizerTest {
-
     @Test
     fun `inserts the missing privmsg colon`() {
         val line = "@id=1 :user!user@user.tmi.twitch.tv PRIVMSG #chan hello there"

@@ -13,13 +13,15 @@ import kotlinx.coroutines.flow.map
  *
  * An empty set means "all languages", which is the default.
  */
-class LanguageFilterStore(private val dataStore: DataStore<Preferences>) {
-
+class LanguageFilterStore(
+    private val dataStore: DataStore<Preferences>,
+) {
     private val key = stringSetPreferencesKey("stream_languages")
 
-    val languages: Flow<Set<String>> = dataStore.data.map { preferences ->
-        StreamLanguages.sanitize(preferences[key].orEmpty()).toSet()
-    }
+    val languages: Flow<Set<String>> =
+        dataStore.data.map { preferences ->
+            StreamLanguages.sanitize(preferences[key].orEmpty()).toSet()
+        }
 
     suspend fun set(languages: Set<String>) {
         dataStore.edit { preferences ->

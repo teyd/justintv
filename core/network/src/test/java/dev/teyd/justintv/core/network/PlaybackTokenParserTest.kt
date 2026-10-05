@@ -4,11 +4,11 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class PlaybackTokenParserTest {
-
     /** Trimmed from a real response for an anonymous `playbackAccessToken` request. */
-    private val successBody = """
+    private val successBody =
+        """
         {"data":{"streamPlaybackAccessToken":{"value":"{\"channel\":\"dona\",\"expires\":1791161251}","signature":"9f8a7b6c5d","__typename":"PlaybackAccessToken"}}}
-    """.trimIndent()
+        """.trimIndent()
 
     @Test
     fun `parses value and signature`() {

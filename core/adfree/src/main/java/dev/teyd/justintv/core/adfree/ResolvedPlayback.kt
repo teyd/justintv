@@ -6,25 +6,31 @@ sealed interface PlaybackMethod {
     data object Direct : PlaybackMethod
 
     /** Resolved through an m3u8 proxy. */
-    data class Proxied(val proxyHost: String) : PlaybackMethod
+    data class Proxied(
+        val proxyHost: String,
+    ) : PlaybackMethod
 
     /** Played with a different player type, which Twitch sometimes serves fewer ads for. */
-    data class PlayerTypeSwap(val playerType: String) : PlaybackMethod
+    data class PlayerTypeSwap(
+        val playerType: String,
+    ) : PlaybackMethod
 
     /** Compact form for the player overlay: just the host, or what kind of fallback it is. */
     val shortLabel: String
-        get() = when (this) {
-            Direct -> "direct"
-            is Proxied -> proxyHost
-            is PlayerTypeSwap -> "$playerType player"
-        }
+        get() =
+            when (this) {
+                Direct -> "direct"
+                is Proxied -> proxyHost
+                is PlayerTypeSwap -> "$playerType player"
+            }
 
     val label: String
-        get() = when (this) {
-            Direct -> "Direct"
-            is Proxied -> "Proxy · $proxyHost"
-            is PlayerTypeSwap -> "Player type · $playerType"
-        }
+        get() =
+            when (this) {
+                Direct -> "Direct"
+                is Proxied -> "Proxy · $proxyHost"
+                is PlayerTypeSwap -> "Player type · $playerType"
+            }
 }
 
 /**

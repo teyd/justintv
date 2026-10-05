@@ -44,25 +44,32 @@ fun StreamList(
         modifier = modifier.fillMaxSize(),
     ) {
         when {
-            state.items.isEmpty() && state.isLoading -> CenteredLoading()
+            state.items.isEmpty() && state.isLoading -> {
+                CenteredLoading()
+            }
 
-            state.items.isEmpty() && state.error != null ->
+            state.items.isEmpty() && state.error != null -> {
                 CenteredMessage(message = state.error, actionLabel = "Try again", onAction = onRefresh)
+            }
 
-            state.items.isEmpty() ->
+            state.items.isEmpty() -> {
                 CenteredMessage(message = emptyText, actionLabel = "Refresh", onAction = onRefresh)
+            }
 
-            else -> LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 320.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .consumeWindowInsets(contentPadding),
-                contentPadding = contentPadding,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(state.items, key = { it.id }) { stream ->
-                    StreamCard(stream = stream, onClick = { onWatch(stream) })
+            else -> {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 320.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .consumeWindowInsets(contentPadding),
+                    contentPadding = contentPadding,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(state.items, key = { it.id }) { stream ->
+                        StreamCard(stream = stream, onClick = { onWatch(stream) })
+                    }
                 }
             }
         }
@@ -84,9 +91,10 @@ fun CenteredMessage(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(32.dp),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

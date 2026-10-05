@@ -4,16 +4,16 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class MiniSnapTest {
-
     @Test
     fun `portrait expanded slot is 16 by 9 under the status bar`() {
-        val frame = expandedPlayerFrame(
-            containerWidth = 1080f,
-            containerHeight = 2400f,
-            statusBar = 80f,
-            landscape = false,
-            chatWidth = 0f,
-        )
+        val frame =
+            expandedPlayerFrame(
+                containerWidth = 1080f,
+                containerHeight = 2400f,
+                statusBar = 80f,
+                landscape = false,
+                chatWidth = 0f,
+            )
         assertThat(frame.left).isEqualTo(0f)
         assertThat(frame.top).isEqualTo(80f)
         assertThat(frame.width).isEqualTo(1080f)
@@ -22,13 +22,14 @@ class MiniSnapTest {
 
     @Test
     fun `landscape expanded slot leaves room for chat`() {
-        val frame = expandedPlayerFrame(
-            containerWidth = 2400f,
-            containerHeight = 1080f,
-            statusBar = 0f,
-            landscape = true,
-            chatWidth = 400f,
-        )
+        val frame =
+            expandedPlayerFrame(
+                containerWidth = 2400f,
+                containerHeight = 1080f,
+                statusBar = 0f,
+                landscape = true,
+                chatWidth = 400f,
+            )
         assertThat(frame.width).isEqualTo(2000f)
         assertThat(frame.height).isEqualTo(1080f)
     }

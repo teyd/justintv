@@ -40,11 +40,12 @@ fun LanguageFilterAction(
         Icon(
             imageVector = Icons.Filled.Translate,
             contentDescription = "Filter by language",
-            tint = if (selected.isEmpty()) {
-                MaterialTheme.colorScheme.onSurface
-            } else {
-                MaterialTheme.colorScheme.primary
-            },
+            tint =
+                if (selected.isEmpty()) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
         )
     }
 
@@ -83,11 +84,12 @@ private fun LanguageFilterDialog(
                     items(StreamLanguages.ALL, key = { it.code }) { language ->
                         val checked = language.code in draft
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    draft = if (checked) draft - language.code else draft + language.code
-                                },
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        draft = if (checked) draft - language.code else draft + language.code
+                                    },
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {

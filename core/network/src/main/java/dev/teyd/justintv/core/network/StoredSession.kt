@@ -17,7 +17,9 @@ data class StoredSession(
 
 interface TokenVault {
     suspend fun load(): StoredSession?
+
     suspend fun save(session: StoredSession)
+
     suspend fun clear()
 }
 
@@ -26,9 +28,10 @@ object SessionCodec {
 
     fun encode(session: StoredSession): String = json.encodeToString(session)
 
-    fun decode(text: String): StoredSession? = try {
-        json.decodeFromString<StoredSession>(text)
-    } catch (_: Exception) {
-        null
-    }
+    fun decode(text: String): StoredSession? =
+        try {
+            json.decodeFromString<StoredSession>(text)
+        } catch (_: Exception) {
+            null
+        }
 }

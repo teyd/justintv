@@ -23,7 +23,10 @@ internal fun pickerOrder(emotes: List<Emote>): List<Emote> = sectionsOf(emotes).
  * Runs in display order with a few requests at a time, so it never crowds out the video or
  * chat. Cancelling it, for example by leaving the screen, stops it between images.
  */
-internal suspend fun prefetchEmoteThumbnails(context: Context, emotes: List<Emote>) {
+internal suspend fun prefetchEmoteThumbnails(
+    context: Context,
+    emotes: List<Emote>,
+) {
     val loader = SingletonImageLoader.get(context)
     val gate = Semaphore(PREFETCH_PARALLELISM)
     coroutineScope {

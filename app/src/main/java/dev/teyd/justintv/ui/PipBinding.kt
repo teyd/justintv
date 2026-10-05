@@ -25,9 +25,10 @@ fun rememberInPip(): Boolean {
     val activity = LocalContext.current.findActivity() as? ComponentActivity ?: return false
     var inPip by remember { mutableStateOf(activity.isInPictureInPictureMode) }
     DisposableEffect(activity) {
-        val listener = Consumer<PictureInPictureModeChangedInfo> { info ->
-            inPip = info.isInPictureInPictureMode
-        }
+        val listener =
+            Consumer<PictureInPictureModeChangedInfo> { info ->
+                inPip = info.isInPictureInPictureMode
+            }
         activity.addOnPictureInPictureModeChangedListener(listener)
         onDispose { activity.removeOnPictureInPictureModeChangedListener(listener) }
     }

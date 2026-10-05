@@ -22,9 +22,10 @@ plugins {
 spotless {
     lineEndings = LineEnding.UNIX
 
-    val ktlintConfig = mapOf(
-        "ij_kotlin_packages_to_use_import_on_demand" to "**",
-    )
+    val ktlintConfig =
+        mapOf(
+            "ij_kotlin_packages_to_use_import_on_demand" to "**",
+        )
 
     kotlin {
         target("**/*.kt")

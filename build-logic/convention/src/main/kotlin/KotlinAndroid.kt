@@ -9,8 +9,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
 internal val Project.libs: VersionCatalog
     get() = extensions.getByType<VersionCatalogsExtension>().named("libs")
 
-internal fun Project.catalogVersion(name: String): String =
-    libs.findVersion(name).get().requiredVersion
+internal fun Project.catalogVersion(name: String): String = libs.findVersion(name).get().requiredVersion
 
 /**
  * Every Android module compiles Java and Kotlin to 17. The JDK itself comes from mise,

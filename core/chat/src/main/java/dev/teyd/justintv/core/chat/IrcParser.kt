@@ -13,7 +13,6 @@ data class IrcMessage(
 }
 
 object IrcParser {
-
     /**
      * Parses one IRC line (without its CRLF), or returns null if it is empty or malformed.
      *

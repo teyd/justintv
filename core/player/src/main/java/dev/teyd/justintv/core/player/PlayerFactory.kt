@@ -27,14 +27,19 @@ class PlayerFactory(
      * before the first frame. One second starts sooner and still rides out a normal live edge.
      */
     fun createPlayer(): ExoPlayer {
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                /* minBufferMs = */ 10_000,
-                /* maxBufferMs = */ 30_000,
-                /* bufferForPlaybackMs = */ 1_000,
-                /* bufferForPlaybackAfterRebufferMs = */ 2_000,
-            )
-            .build()
+        val loadControl =
+            DefaultLoadControl
+                .Builder()
+                .setBufferDurationsMs(
+                    // minBufferMs =
+                    10_000,
+                    // maxBufferMs =
+                    30_000,
+                    // bufferForPlaybackMs =
+                    1_000,
+                    // bufferForPlaybackAfterRebufferMs =
+                    2_000,
+                ).build()
         return ExoPlayer.Builder(context).setLoadControl(loadControl).build()
     }
 
@@ -46,16 +51,21 @@ class PlayerFactory(
      * The MIME type is set explicitly because proxy playlist URLs have no `.m3u8` extension.
      */
     fun hlsMediaSource(playlistUrl: String): MediaSource {
-        val dataSourceFactory = DefaultDataSource.Factory(
-            context,
-            OkHttpDataSource.Factory(httpClient)
-                .setUserAgent(TwitchEndpoints.USER_AGENT),
-        )
-        val mediaItem = MediaItem.Builder()
-            .setUri(playlistUrl)
-            .setMimeType(MimeTypes.APPLICATION_M3U8)
-            .build()
-        return HlsMediaSource.Factory(dataSourceFactory)
+        val dataSourceFactory =
+            DefaultDataSource.Factory(
+                context,
+                OkHttpDataSource
+                    .Factory(httpClient)
+                    .setUserAgent(TwitchEndpoints.USER_AGENT),
+            )
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri(playlistUrl)
+                .setMimeType(MimeTypes.APPLICATION_M3U8)
+                .build()
+        return HlsMediaSource
+            .Factory(dataSourceFactory)
             // Prepare from the master playlist alone. Twitch lists CODECS on every variant, so
             // the player does not need to download a media playlist before it can start.
             .setAllowChunklessPreparation(true)

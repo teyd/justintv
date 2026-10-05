@@ -14,8 +14,9 @@ import kotlinx.coroutines.flow.map
  * Disabled hosts are stored instead of enabled ones, so proxies added in a later build are on
  * by default and the preference only records the exceptions.
  */
-class AdBlockSettingsStore(private val dataStore: DataStore<Preferences>) {
-
+class AdBlockSettingsStore(
+    private val dataStore: DataStore<Preferences>,
+) {
     private val enabledKey = booleanPreferencesKey("ad_block_enabled")
     private val disabledProxiesKey = stringSetPreferencesKey("ad_block_disabled_proxies")
 
@@ -29,7 +30,10 @@ class AdBlockSettingsStore(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[enabledKey] = enabled }
     }
 
-    suspend fun setProxyEnabled(host: String, enabled: Boolean) {
+    suspend fun setProxyEnabled(
+        host: String,
+        enabled: Boolean,
+    ) {
         dataStore.edit { preferences ->
             val disabled = preferences[disabledProxiesKey].orEmpty()
             preferences[disabledProxiesKey] = if (enabled) disabled - host else disabled + host

@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -57,7 +58,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.layout.ContentScale
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import dev.teyd.justintv.core.player.VideoPlayer
@@ -72,10 +72,11 @@ internal val LandscapeChatWidth = 240.dp
 private const val APPEAR_MS = 180
 private const val PREVIEW_FADE_MS = 260
 
-private val DockSpring = spring<Float>(
-    dampingRatio = Spring.DampingRatioNoBouncy,
-    stiffness = Spring.StiffnessMediumLow,
-)
+private val DockSpring =
+    spring<Float>(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+    )
 
 /**
  * The only video surface in the app.
@@ -103,11 +104,12 @@ fun PlaybackOverlay(
     val statusBar = WindowInsets.statusBars.getTop(density).toFloat()
     val navigationBar = WindowInsets.navigationBars.getBottom(density).toFloat()
     val dockHeightPx = with(density) { PlaybackDockHeight.toPx() }
-    val chatWidthPx = if (landscape && watchState.landscapeChat) {
-        with(density) { LandscapeChatWidth.toPx() }
-    } else {
-        0f
-    }
+    val chatWidthPx =
+        if (landscape && watchState.landscapeChat) {
+            with(density) { LandscapeChatWidth.toPx() }
+        } else {
+            0f
+        }
     var containerWidth by remember { mutableFloatStateOf(0f) }
     var containerHeight by remember { mutableFloatStateOf(0f) }
     var progress by remember { mutableFloatStateOf(if (mini) 1f else 0f) }
@@ -140,19 +142,21 @@ fun PlaybackOverlay(
         animate(progress, target, animationSpec = DockSpring) { value, _ -> progress = value }
     }
 
-    fun expanded(): PlayerFrame = expandedPlayerFrame(
-        containerWidth = containerWidth,
-        containerHeight = containerHeight,
-        statusBar = statusBar,
-        landscape = landscape,
-        chatWidth = chatWidthPx,
-    )
+    fun expanded(): PlayerFrame =
+        expandedPlayerFrame(
+            containerWidth = containerWidth,
+            containerHeight = containerHeight,
+            statusBar = statusBar,
+            landscape = landscape,
+            chatWidth = chatWidthPx,
+        )
 
-    fun docked(): PlayerFrame = dockedVideoFrame(
-        containerHeight = containerHeight,
-        navigationBar = navigationBar,
-        dockHeight = dockHeightPx,
-    )
+    fun docked(): PlayerFrame =
+        dockedVideoFrame(
+            containerHeight = containerHeight,
+            navigationBar = navigationBar,
+            dockHeight = dockHeightPx,
+        )
 
     val onDrag: (Float) -> Unit = { delta ->
         dragging = true
@@ -161,11 +165,15 @@ fun PlaybackOverlay(
     }
     val onDragEnd: (Float) -> Unit = { velocity ->
         when (settlePlayerDrag(progress, velocity)) {
-            PlayerDragSettle.Dismiss -> viewModel.close()
+            PlayerDragSettle.Dismiss -> {
+                viewModel.close()
+            }
+
             PlayerDragSettle.Mini -> {
                 committedMini = true
                 if (!mini) onMinimize()
             }
+
             PlayerDragSettle.Expanded -> {
                 committedMini = false
                 if (mini) onExpand()
@@ -175,12 +183,13 @@ fun PlaybackOverlay(
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .onSizeChanged {
-                containerWidth = it.width.toFloat()
-                containerHeight = it.height.toFloat()
-            },
+        modifier =
+            modifier
+                .fillMaxSize()
+                .onSizeChanged {
+                    containerWidth = it.width.toFloat()
+                    containerHeight = it.height.toFloat()
+                },
     ) {
         if (containerWidth <= 0f) return@Box
 
@@ -208,21 +217,20 @@ fun PlaybackOverlay(
         }
 
         Box(
-            modifier = Modifier
-                .placeFrame {
-                    val shown = progress.coerceIn(0f, 1f)
-                    val travel = (docked().top - expanded().top).coerceAtLeast(1f)
-                    val overscroll = ((progress - 1f) * travel).coerceAtLeast(0f)
-                    lerpFrame(expanded(), docked(), shown).let { frame ->
-                        frame.copy(top = frame.top + overscroll)
-                    }
-                }
-                .graphicsLayer {
-                    val travel = (docked().top - expanded().top).coerceAtLeast(1f)
-                    val overscroll = ((progress - 1f) * travel).coerceAtLeast(0f)
-                    alpha = (1f - overscroll / (dockHeightPx * 1.4f)).coerceIn(0.25f, 1f) * appear
-                }
-                .background(Color.Black),
+            modifier =
+                Modifier
+                    .placeFrame {
+                        val shown = progress.coerceIn(0f, 1f)
+                        val travel = (docked().top - expanded().top).coerceAtLeast(1f)
+                        val overscroll = ((progress - 1f) * travel).coerceAtLeast(0f)
+                        lerpFrame(expanded(), docked(), shown).let { frame ->
+                            frame.copy(top = frame.top + overscroll)
+                        }
+                    }.graphicsLayer {
+                        val travel = (docked().top - expanded().top).coerceAtLeast(1f)
+                        val overscroll = ((progress - 1f) * travel).coerceAtLeast(0f)
+                        alpha = (1f - overscroll / (dockHeightPx * 1.4f)).coerceIn(0.25f, 1f) * appear
+                    }.background(Color.Black),
         ) {
             VideoPlayer(player = viewModel.playerHolder, modifier = Modifier.fillMaxSize())
             val preview = watchState.previewUrl
@@ -239,24 +247,25 @@ fun PlaybackOverlay(
             }
             if (mini) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .playerDrag(
-                            onDragStart = { dragFromDock = true },
-                            onDrag = onDrag,
-                            onDragEnd = onDragEnd,
-                        )
-                        .dockTap(onExpand),
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .playerDrag(
+                                onDragStart = { dragFromDock = true },
+                                onDrag = onDrag,
+                                onDragEnd = onDragEnd,
+                            ).dockTap(onExpand),
                 )
             }
         }
 
         if (!mini) {
-            val toggleChat = if (landscape) {
-                { viewModel.setLandscapeChat(!watchState.landscapeChat) }
-            } else {
-                null
-            }
+            val toggleChat =
+                if (landscape) {
+                    { viewModel.setLandscapeChat(!watchState.landscapeChat) }
+                } else {
+                    null
+                }
             PlayerPane(
                 channel = watchState.displayName.ifBlank { watchState.channelLogin },
                 state = watchState,
@@ -272,9 +281,10 @@ fun PlaybackOverlay(
                 onVerticalDragEnd = onDragEnd,
                 sleepEndsAt = sleepEndsAt,
                 onSleepTimer = viewModel::setSleepTimer,
-                modifier = Modifier
-                    .placeFrame { expanded() }
-                    .graphicsLayer { alpha = (1f - progress.coerceIn(0f, 1f)) * appear },
+                modifier =
+                    Modifier
+                        .placeFrame { expanded() }
+                        .graphicsLayer { alpha = (1f - progress.coerceIn(0f, 1f)) * appear },
             )
         }
     }
@@ -298,21 +308,20 @@ private fun DockBar(
 ) {
     val videoWidth = PlaybackDockHeight * 16f / 9f
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .graphicsLayer {
-                translationY = shift()
-                this.alpha = alpha()
-            }
-            .then(
-                if (gesturesEnabled) {
-                    Modifier.playerDrag(onDragStart = onDragStart, onDrag = onDrag, onDragEnd = onDragEnd)
-                } else {
-                    Modifier
-                },
-            )
-            .then(if (gesturesEnabled) Modifier.dockTap(onExpand) else Modifier),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .graphicsLayer {
+                    translationY = shift()
+                    this.alpha = alpha()
+                }.then(
+                    if (gesturesEnabled) {
+                        Modifier.playerDrag(onDragStart = onDragStart, onDrag = onDrag, onDragEnd = onDragEnd)
+                    } else {
+                        Modifier
+                    },
+                ).then(if (gesturesEnabled) Modifier.dockTap(onExpand) else Modifier),
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 3.dp,
     ) {
@@ -322,16 +331,18 @@ private fun DockBar(
         ) {
             Spacer(Modifier.width(videoWidth))
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFE91916)),
+                        modifier =
+                            Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFE91916)),
                     )
                     Text(
                         text = displayName,
@@ -368,18 +379,18 @@ private fun DockBar(
  * Positions a child at [frame] and sizes the hit target to that rectangle, so the rest of
  * the overlay does not steal touches from the screen underneath.
  */
-private fun Modifier.placeFrame(frame: () -> PlayerFrame): Modifier = this
-    .offset {
-        val placed = frame()
-        IntOffset(placed.left.roundToInt(), placed.top.roundToInt())
-    }
-    .layout { measurable, _ ->
-        val placed = frame()
-        val width = placed.width.roundToInt().coerceAtLeast(1)
-        val height = placed.height.roundToInt().coerceAtLeast(1)
-        val placeable = measurable.measure(Constraints.fixed(width, height))
-        layout(width, height) { placeable.place(0, 0) }
-    }
+private fun Modifier.placeFrame(frame: () -> PlayerFrame): Modifier =
+    this
+        .offset {
+            val placed = frame()
+            IntOffset(placed.left.roundToInt(), placed.top.roundToInt())
+        }.layout { measurable, _ ->
+            val placed = frame()
+            val width = placed.width.roundToInt().coerceAtLeast(1)
+            val height = placed.height.roundToInt().coerceAtLeast(1)
+            val placeable = measurable.measure(Constraints.fixed(width, height))
+            layout(width, height) { placeable.place(0, 0) }
+        }
 
 /**
  * Moves the player with the finger. One pixel of drag is reported as one pixel; the overlay
@@ -389,50 +400,52 @@ internal fun Modifier.playerDrag(
     onDragStart: () -> Unit = {},
     onDrag: (Float) -> Unit,
     onDragEnd: (Float) -> Unit,
-): Modifier = pointerInput(Unit) {
-    val tracker = VelocityTracker()
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
-        tracker.resetTracking()
-        var moved = false
-        var totalY = 0f
-        while (true) {
-            val event = awaitPointerEvent()
-            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-            if (!change.pressed) {
-                if (moved) onDragEnd(tracker.calculateVelocity().y)
-                break
-            }
-            val delta = change.positionChange().y
-            totalY += delta
-            if (!moved && abs(totalY) > viewConfiguration.touchSlop) {
-                moved = true
-                onDragStart()
-            }
-            if (moved) {
-                change.consume()
-                tracker.addPosition(change.uptimeMillis, change.position)
-                onDrag(delta)
+): Modifier =
+    pointerInput(Unit) {
+        val tracker = VelocityTracker()
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            tracker.resetTracking()
+            var moved = false
+            var totalY = 0f
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) {
+                    if (moved) onDragEnd(tracker.calculateVelocity().y)
+                    break
+                }
+                val delta = change.positionChange().y
+                totalY += delta
+                if (!moved && abs(totalY) > viewConfiguration.touchSlop) {
+                    moved = true
+                    onDragStart()
+                }
+                if (moved) {
+                    change.consume()
+                    tracker.addPosition(change.uptimeMillis, change.position)
+                    onDrag(delta)
+                }
             }
         }
     }
-}
 
 /** A tap on the dock, ignored once the finger has started a drag. */
-private fun Modifier.dockTap(onExpand: () -> Unit): Modifier = pointerInput(onExpand) {
-    awaitEachGesture {
-        val down = awaitFirstDown()
-        var total = 0f
-        var dragged = false
-        while (true) {
-            val event = awaitPointerEvent()
-            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-            if (!change.pressed) {
-                if (!dragged) onExpand()
-                break
+private fun Modifier.dockTap(onExpand: () -> Unit): Modifier =
+    pointerInput(onExpand) {
+        awaitEachGesture {
+            val down = awaitFirstDown()
+            var total = 0f
+            var dragged = false
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) {
+                    if (!dragged) onExpand()
+                    break
+                }
+                total += abs(change.positionChange().y)
+                if (total > viewConfiguration.touchSlop) dragged = true
             }
-            total += abs(change.positionChange().y)
-            if (total > viewConfiguration.touchSlop) dragged = true
         }
     }
-}

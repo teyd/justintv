@@ -6,6 +6,8 @@ import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import javax.inject.Inject
 
 @HiltViewModel
-class PipSettingsViewModel @Inject constructor(
-    val store: PlaybackSettingsStore,
-) : ViewModel()
+class PipSettingsViewModel
+    @Inject
+    constructor(
+        val store: PlaybackSettingsStore,
+    ) : ViewModel()

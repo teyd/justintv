@@ -17,41 +17,40 @@ import dev.teyd.justintv.core.adfree.ProxyHealthChecker
 import dev.teyd.justintv.core.chat.BttvProvider
 import dev.teyd.justintv.core.chat.ChatHistorySettings
 import dev.teyd.justintv.core.chat.ChatSession
-import dev.teyd.justintv.core.chat.RecentMessages
 import dev.teyd.justintv.core.chat.EmoteRepository
 import dev.teyd.justintv.core.chat.EmoteSource
 import dev.teyd.justintv.core.chat.FfzProvider
+import dev.teyd.justintv.core.chat.RecentMessages
 import dev.teyd.justintv.core.chat.SevenTvProvider
 import dev.teyd.justintv.core.chat.TwitchIrcClient
 import dev.teyd.justintv.core.data.AdBlockSettingsStore
 import dev.teyd.justintv.core.data.AppearanceSettingsStore
 import dev.teyd.justintv.core.data.ChatSettingsStore
+import dev.teyd.justintv.core.data.KeystoreTokenVault
 import dev.teyd.justintv.core.data.LanguageFilterStore
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
-import dev.teyd.justintv.core.data.KeystoreTokenVault
 import dev.teyd.justintv.core.data.SessionStore
 import dev.teyd.justintv.core.network.ActiveNetworkDns
-import dev.teyd.justintv.core.network.TokenVault
-import dev.teyd.justintv.core.network.TwitchIdentityApi
-import dev.teyd.justintv.core.network.TwitchSession
 import dev.teyd.justintv.core.network.DirectorySource
 import dev.teyd.justintv.core.network.GqlClient
 import dev.teyd.justintv.core.network.OkHttpTextFetcher
+import dev.teyd.justintv.core.network.TokenVault
 import dev.teyd.justintv.core.network.TwitchDirectoryApi
 import dev.teyd.justintv.core.network.TwitchHttpClient
+import dev.teyd.justintv.core.network.TwitchIdentityApi
 import dev.teyd.justintv.core.network.TwitchPlaybackApi
+import dev.teyd.justintv.core.network.TwitchSession
 import dev.teyd.justintv.core.player.PlayerFactory
-import java.util.concurrent.TimeUnit
-import javax.inject.Singleton
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
+import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-
     /** Probes (proxy playlists, ping) must fail fast: a hanging proxy costs seconds, not minutes. */
     private const val PROBE_CONNECT_TIMEOUT_SECONDS = 3L
     private const val VERIFY_CALL_TIMEOUT_SECONDS = 6L
@@ -62,9 +61,12 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun okHttpClient(@ApplicationContext context: Context): OkHttpClient =
+    fun okHttpClient(
+        @ApplicationContext context: Context,
+    ): OkHttpClient =
         TwitchHttpClient.create(
-            OkHttpClient.Builder()
+            OkHttpClient
+                .Builder()
                 .dns(ActiveNetworkDns(context))
                 // The default allows 5 at once per host. Emote thumbnails, chat emotes and the
                 // prefetcher all come from the same few CDN hosts and would queue behind it.
@@ -99,18 +101,17 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun directorySource(httpClient: OkHttpClient): DirectorySource =
-        TwitchDirectoryApi(GqlClient(httpClient))
+    fun directorySource(httpClient: OkHttpClient): DirectorySource = TwitchDirectoryApi(GqlClient(httpClient))
 
     @Provides
     @Singleton
-    fun preferencesDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
-        PreferenceDataStoreFactory.create(produceFile = { context.preferencesDataStoreFile("settings") })
+    fun preferencesDataStore(
+        @ApplicationContext context: Context,
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(produceFile = { context.preferencesDataStoreFile("settings") })
 
     @Provides
     @Singleton
-    fun languageFilterStore(dataStore: DataStore<Preferences>): LanguageFilterStore =
-        LanguageFilterStore(dataStore)
+    fun languageFilterStore(dataStore: DataStore<Preferences>): LanguageFilterStore = LanguageFilterStore(dataStore)
 
     @Provides
     @Singleton
@@ -118,11 +119,16 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun tokenVault(@ApplicationContext context: Context): TokenVault = KeystoreTokenVault(context)
+    fun tokenVault(
+        @ApplicationContext context: Context,
+    ): TokenVault = KeystoreTokenVault(context)
 
     @Provides
     @Singleton
-    fun twitchSession(httpClient: OkHttpClient, vault: TokenVault): TwitchSession =
+    fun twitchSession(
+        httpClient: OkHttpClient,
+        vault: TokenVault,
+    ): TwitchSession =
         TwitchSession(
             api = TwitchIdentityApi(httpClient),
             vault = vault,
@@ -131,27 +137,25 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun playbackSettingsStore(dataStore: DataStore<Preferences>): PlaybackSettingsStore =
-        PlaybackSettingsStore(dataStore)
+    fun playbackSettingsStore(dataStore: DataStore<Preferences>): PlaybackSettingsStore = PlaybackSettingsStore(dataStore)
 
     @Provides
     @Singleton
-    fun appearanceSettingsStore(dataStore: DataStore<Preferences>): AppearanceSettingsStore =
-        AppearanceSettingsStore(dataStore)
+    fun appearanceSettingsStore(dataStore: DataStore<Preferences>): AppearanceSettingsStore = AppearanceSettingsStore(dataStore)
 
     @Provides
     @Singleton
-    fun adBlockSettingsStore(dataStore: DataStore<Preferences>): AdBlockSettingsStore =
-        AdBlockSettingsStore(dataStore)
+    fun adBlockSettingsStore(dataStore: DataStore<Preferences>): AdBlockSettingsStore = AdBlockSettingsStore(dataStore)
 
     @Provides
     @Singleton
-    fun chatSettingsStore(dataStore: DataStore<Preferences>): ChatSettingsStore =
-        ChatSettingsStore(dataStore)
+    fun chatSettingsStore(dataStore: DataStore<Preferences>): ChatSettingsStore = ChatSettingsStore(dataStore)
 
     @Provides
     @Singleton
-    fun playbackGate(): dev.teyd.justintv.core.player.PlaybackGate = dev.teyd.justintv.core.player.PlaybackGate()
+    fun playbackGate(): dev.teyd.justintv.core.player.PlaybackGate =
+        dev.teyd.justintv.core.player
+            .PlaybackGate()
 
     @Provides
     @Singleton
@@ -174,13 +178,14 @@ object AppModule {
         val fetcher = OkHttpTextFetcher(probeClient(httpClient, EMOTE_CALL_TIMEOUT_SECONDS))
         return EmoteRepository(
             providers = listOf(SevenTvProvider(fetcher), BttvProvider(fetcher), FfzProvider(fetcher)),
-            enabledSources = combine(chatSettings.sevenTv, chatSettings.bttv, chatSettings.ffz) { seven, bttv, ffz ->
-                buildSet {
-                    if (seven) add(EmoteSource.SevenTv)
-                    if (bttv) add(EmoteSource.Bttv)
-                    if (ffz) add(EmoteSource.Ffz)
-                }
-            },
+            enabledSources =
+                combine(chatSettings.sevenTv, chatSettings.bttv, chatSettings.ffz) { seven, bttv, ffz ->
+                    buildSet {
+                        if (seven) add(EmoteSource.SevenTv)
+                        if (bttv) add(EmoteSource.Bttv)
+                        if (ffz) add(EmoteSource.Ffz)
+                    }
+                },
         )
     }
 
@@ -191,21 +196,26 @@ object AppModule {
         emotes: EmoteRepository,
         httpClient: OkHttpClient,
         chatSettings: ChatSettingsStore,
-    ): ChatSession = ChatSession(
-        irc = irc,
-        emoteRepository = emotes,
-        recent = RecentMessages(httpClient),
-        historySettings = {
-            ChatHistorySettings(
-                enabled = chatSettings.recentMessages.first(),
-                limit = chatSettings.recentMessageLimit.first(),
-            )
-        },
-    )
+    ): ChatSession =
+        ChatSession(
+            irc = irc,
+            emoteRepository = emotes,
+            recent = RecentMessages(httpClient),
+            historySettings = {
+                ChatHistorySettings(
+                    enabled = chatSettings.recentMessages.first(),
+                    limit = chatSettings.recentMessageLimit.first(),
+                )
+            },
+        )
 
     /** Shares the connection pool and dispatcher with [base] but gives up quickly. */
-    private fun probeClient(base: OkHttpClient, callTimeoutSeconds: Long): OkHttpClient =
-        base.newBuilder()
+    private fun probeClient(
+        base: OkHttpClient,
+        callTimeoutSeconds: Long,
+    ): OkHttpClient =
+        base
+            .newBuilder()
             .connectTimeout(PROBE_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .callTimeout(callTimeoutSeconds, TimeUnit.SECONDS)
             .build()

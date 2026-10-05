@@ -4,7 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class StreamLanguagesTest {
-
     @Test
     fun `codes are unique`() {
         val codes = StreamLanguages.ALL.map { it.code }

@@ -9,11 +9,11 @@ import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.MediaSource
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.concurrent.atomic.AtomicInteger
 
 /** What the UI needs to draw play/pause, a spinner and an error. */
 data class PlaybackState(
@@ -76,38 +76,44 @@ class PlayerHolder(
     @Volatile
     private var bandwidthBps: Long? = null
 
-    private val listener = object : Player.Listener {
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            _playback.update { it.copy(isPlaying = isPlaying) }
+    private val listener =
+        object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                _playback.update { it.copy(isPlaying = isPlaying) }
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                _playback.update { it.copy(isBuffering = playbackState == Player.STATE_BUFFERING) }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                _playback.update { it.copy(error = error.errorCodeName) }
+            }
+
+            override fun onTracksChanged(tracks: Tracks) {
+                _qualities.value = qualitiesOf(tracks)
+            }
         }
 
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            _playback.update { it.copy(isBuffering = playbackState == Player.STATE_BUFFERING) }
-        }
+    private val analytics =
+        object : AnalyticsListener {
+            override fun onDroppedVideoFrames(
+                eventTime: AnalyticsListener.EventTime,
+                droppedFrames: Int,
+                elapsedMs: Long,
+            ) {
+                droppedFrameCount.addAndGet(droppedFrames)
+            }
 
-        override fun onPlayerError(error: PlaybackException) {
-            _playback.update { it.copy(error = error.errorCodeName) }
+            override fun onBandwidthEstimate(
+                eventTime: AnalyticsListener.EventTime,
+                totalLoadTimeMs: Int,
+                totalBytesLoaded: Long,
+                bitrateEstimate: Long,
+            ) {
+                bandwidthBps = bitrateEstimate
+            }
         }
-
-        override fun onTracksChanged(tracks: Tracks) {
-            _qualities.value = qualitiesOf(tracks)
-        }
-    }
-
-    private val analytics = object : AnalyticsListener {
-        override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {
-            droppedFrameCount.addAndGet(droppedFrames)
-        }
-
-        override fun onBandwidthEstimate(
-            eventTime: AnalyticsListener.EventTime,
-            totalLoadTimeMs: Int,
-            totalBytesLoaded: Long,
-            bitrateEstimate: Long,
-        ) {
-            bandwidthBps = bitrateEstimate
-        }
-    }
 
     init {
         exoPlayer.addListener(listener)
@@ -178,14 +184,15 @@ class PlayerHolder(
             for (index in 0 until group.length) {
                 if (!group.isTrackSupported(index)) continue
                 val format = group.getTrackFormat(index)
-                result += VideoQuality(
-                    label = QualityLabel.of(format),
-                    height = format.height.coerceAtLeast(0),
-                    frameRate = format.frameRate.takeIf { it > 0f } ?: 0f,
-                    bitrate = format.bitrate.coerceAtLeast(0),
-                    group = group,
-                    trackIndex = index,
-                )
+                result +=
+                    VideoQuality(
+                        label = QualityLabel.of(format),
+                        height = format.height.coerceAtLeast(0),
+                        frameRate = format.frameRate.takeIf { it > 0f } ?: 0f,
+                        bitrate = format.bitrate.coerceAtLeast(0),
+                        group = group,
+                        trackIndex = index,
+                    )
             }
         }
         return result.sortedWith(compareByDescending<VideoQuality> { it.height }.thenByDescending { it.frameRate })
@@ -196,7 +203,10 @@ class PlayerHolder(
 object QualityLabel {
     fun of(format: Format): String = of(format.height, format.frameRate)
 
-    fun of(height: Int, frameRate: Float): String {
+    fun of(
+        height: Int,
+        frameRate: Float,
+    ): String {
         if (height <= 0) return "Audio only"
         // Twitch uses 30 and 60; anything above 45 is the 60fps rendition.
         return if (frameRate >= 45f) "${height}p${Math.round(frameRate / 10f) * 10}" else "${height}p"

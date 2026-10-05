@@ -6,21 +6,25 @@ import dev.teyd.justintv.core.chat.EmoteSource
 import org.junit.Test
 
 class EmotePickerTest {
+    private fun emote(
+        name: String,
+        source: EmoteSource,
+    ) = Emote(name, "https://example/$name", source = source)
 
-    private fun emote(name: String, source: EmoteSource) = Emote(name, "https://example/$name", source = source)
-
-    private val emotes = listOf(
-        emote("catJAM", EmoteSource.Bttv),
-        emote("KEKW", EmoteSource.SevenTv),
-        emote("ZrehplaR", EmoteSource.Ffz),
-        emote("Clap", EmoteSource.SevenTv),
-    )
+    private val emotes =
+        listOf(
+            emote("catJAM", EmoteSource.Bttv),
+            emote("KEKW", EmoteSource.SevenTv),
+            emote("ZrehplaR", EmoteSource.Ffz),
+            emote("Clap", EmoteSource.SevenTv),
+        )
 
     @Test
     fun `sections follow display order and sort by name`() {
         val sections = sectionsOf(emotes)
         assertThat(sections.map { it.source })
-            .containsExactly(EmoteSource.SevenTv, EmoteSource.Bttv, EmoteSource.Ffz).inOrder()
+            .containsExactly(EmoteSource.SevenTv, EmoteSource.Bttv, EmoteSource.Ffz)
+            .inOrder()
         assertThat(sections.first().emotes.map { it.name }).containsExactly("Clap", "KEKW").inOrder()
     }
 
@@ -40,7 +44,8 @@ class EmotePickerTest {
     fun `prefetch runs in the order the grid lists emotes`() {
         // The viewer scrolls top to bottom, so the first screens must be warm first.
         assertThat(pickerOrder(emotes).map { it.name })
-            .containsExactly("Clap", "KEKW", "catJAM", "ZrehplaR").inOrder()
+            .containsExactly("Clap", "KEKW", "catJAM", "ZrehplaR")
+            .inOrder()
     }
 
     @Test

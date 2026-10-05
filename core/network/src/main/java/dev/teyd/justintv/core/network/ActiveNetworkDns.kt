@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.DnsResolver
 import android.net.Network
+import okhttp3.Dns
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.UnknownHostException
@@ -13,7 +14,6 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
-import okhttp3.Dns
 
 /**
  * Resolves names on the network the app is actually using, and remembers good answers briefly.
@@ -28,8 +28,9 @@ import okhttp3.Dns
  * cached: the next call tries again. When a lookup fails but an older answer exists, the older
  * one is returned instead of an error.
  */
-class ActiveNetworkDns(context: Context) : Dns {
-
+class ActiveNetworkDns(
+    context: Context,
+) : Dns {
     private val connectivity = context.applicationContext.getSystemService(ConnectivityManager::class.java)
     private val executor: ExecutorService =
         Executors.newFixedThreadPool(PARALLEL_LOOKUPS) { runnable ->
@@ -50,11 +51,12 @@ class ActiveNetworkDns(context: Context) : Dns {
             return cached?.addresses ?: throw UnknownHostException("Unable to resolve $hostname")
         }
 
-        val addresses = try {
-            resolve(hostname)
-        } finally {
-            inFlight.remove(hostname)
-        }
+        val addresses =
+            try {
+                resolve(hostname)
+            } finally {
+                inFlight.remove(hostname)
+            }
         mine.complete(addresses)
         if (addresses.isNotEmpty()) {
             cache[hostname] = Entry(addresses, System.currentTimeMillis())
@@ -83,7 +85,10 @@ class ActiveNetworkDns(context: Context) : Dns {
     }
 
     /** A and AAAA at the same time, so the slower one does not add to the faster one. */
-    private fun queryBoth(network: Network, hostname: String): List<InetAddress> {
+    private fun queryBoth(
+        network: Network,
+        hostname: String,
+    ): List<InetAddress> {
         val v4 = AtomicReference<List<InetAddress>>(emptyList())
         val v6 = AtomicReference<List<InetAddress>>(emptyList())
         val done = CountDownLatch(2)
@@ -108,7 +113,10 @@ class ActiveNetworkDns(context: Context) : Dns {
             executor,
             null,
             object : DnsResolver.Callback<List<InetAddress>> {
-                override fun onAnswer(answer: List<InetAddress>, rcode: Int) {
+                override fun onAnswer(
+                    answer: List<InetAddress>,
+                    rcode: Int,
+                ) {
                     into.set(answer)
                     done.countDown()
                 }
@@ -120,7 +128,10 @@ class ActiveNetworkDns(context: Context) : Dns {
         )
     }
 
-    private class Entry(val addresses: List<InetAddress>, val at: Long)
+    private class Entry(
+        val addresses: List<InetAddress>,
+        val at: Long,
+    )
 
     /** One hostname, one lookup. Everyone else waits on the same answer. */
     private class InFlight {

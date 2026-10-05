@@ -6,28 +6,30 @@ import android.security.keystore.KeyProperties
 import dev.teyd.justintv.core.network.SessionCodec
 import dev.teyd.justintv.core.network.StoredSession
 import dev.teyd.justintv.core.network.TokenVault
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * The sign-in file. Android Keystore holds the key; the ciphertext sits in no-backup storage,
  * not in the preferences DataStore.
  */
-class KeystoreTokenVault(context: Context) : TokenVault {
-
+class KeystoreTokenVault(
+    context: Context,
+) : TokenVault {
     private val file = File(context.noBackupFilesDir, FILE_NAME)
 
-    override suspend fun load(): StoredSession? = withContext(Dispatchers.IO) {
-        if (!file.exists()) return@withContext null
-        val plain = decrypt(file.readBytes()) ?: return@withContext null
-        SessionCodec.decode(plain)
-    }
+    override suspend fun load(): StoredSession? =
+        withContext(Dispatchers.IO) {
+            if (!file.exists()) return@withContext null
+            val plain = decrypt(file.readBytes()) ?: return@withContext null
+            SessionCodec.decode(plain)
+        }
 
     override suspend fun save(session: StoredSession) {
         withContext(Dispatchers.IO) {
@@ -48,19 +50,20 @@ class KeystoreTokenVault(context: Context) : TokenVault {
         return byteArrayOf(iv.size.toByte()) + iv + cipherText
     }
 
-    private fun decrypt(payload: ByteArray): String? = try {
-        if (payload.isEmpty()) return null
-        val ivLength = payload[0].toInt() and 0xFF
-        if (payload.size <= 1 + ivLength) return null
-        val iv = payload.copyOfRange(1, 1 + ivLength)
-        val cipherText = payload.copyOfRange(1 + ivLength, payload.size)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, iv))
-        String(cipher.doFinal(cipherText), Charsets.UTF_8)
-    } catch (_: Exception) {
-        file.delete()
-        null
-    }
+    private fun decrypt(payload: ByteArray): String? =
+        try {
+            if (payload.isEmpty()) return null
+            val ivLength = payload[0].toInt() and 0xFF
+            if (payload.size <= 1 + ivLength) return null
+            val iv = payload.copyOfRange(1, 1 + ivLength)
+            val cipherText = payload.copyOfRange(1 + ivLength, payload.size)
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, iv))
+            String(cipher.doFinal(cipherText), Charsets.UTF_8)
+        } catch (_: Exception) {
+            file.delete()
+            null
+        }
 
     private fun secretKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -68,7 +71,8 @@ class KeystoreTokenVault(context: Context) : TokenVault {
         if (existing != null) return existing
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
         generator.init(
-            KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            KeyGenParameterSpec
+                .Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(256)

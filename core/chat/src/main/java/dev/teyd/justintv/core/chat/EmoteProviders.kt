@@ -1,14 +1,15 @@
 package dev.teyd.justintv.core.chat
 
 import dev.teyd.justintv.core.network.TextFetcher
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-private val json = Json {
-    ignoreUnknownKeys = true
-    coerceInputValues = true
-}
+private val json =
+    Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+    }
 
 /** One emote provider. Both calls throw on network or parse errors; the repository absorbs them. */
 interface EmoteProvider {
@@ -16,13 +17,16 @@ interface EmoteProvider {
     val source: EmoteSource
 
     suspend fun global(): List<Emote>
+
     suspend fun channel(roomId: String): List<Emote>
 }
 
 // ---------------------------------------------------------------- 7TV
 
 @Serializable
-internal data class SevenTvSet(val emotes: List<SevenTvActive> = emptyList())
+internal data class SevenTvSet(
+    val emotes: List<SevenTvActive> = emptyList(),
+)
 
 @Serializable
 internal data class SevenTvActive(
@@ -32,10 +36,15 @@ internal data class SevenTvActive(
 )
 
 @Serializable
-internal data class SevenTvData(val host: SevenTvHost? = null)
+internal data class SevenTvData(
+    val host: SevenTvHost? = null,
+)
 
 @Serializable
-internal data class SevenTvHost(val url: String = "", val files: List<SevenTvFile> = emptyList())
+internal data class SevenTvHost(
+    val url: String = "",
+    val files: List<SevenTvFile> = emptyList(),
+)
 
 @Serializable
 internal data class SevenTvFile(
@@ -48,41 +57,51 @@ internal data class SevenTvFile(
 )
 
 @Serializable
-internal data class SevenTvUser(@SerialName("emote_set") val emoteSet: SevenTvSet? = null)
+internal data class SevenTvUser(
+    @SerialName("emote_set") val emoteSet: SevenTvSet? = null,
+)
 
 object SevenTvParser {
     fun parseSet(body: String): List<Emote> = toEmotes(json.decodeFromString<SevenTvSet>(body))
 
     fun parseUser(body: String): List<Emote> =
-        json.decodeFromString<SevenTvUser>(body).emoteSet?.let(::toEmotes).orEmpty()
+        json
+            .decodeFromString<SevenTvUser>(body)
+            .emoteSet
+            ?.let(::toEmotes)
+            .orEmpty()
 
-    private fun toEmotes(set: SevenTvSet): List<Emote> = set.emotes.mapNotNull { active ->
-        val host = active.data?.host ?: return@mapNotNull null
-        if (host.url.isBlank()) return@mapNotNull null
-        val base = if (host.url.startsWith("//")) "https:${host.url}" else host.url
-        val file = host.files.firstOrNull { it.name == "2x.webp" }
-            ?: host.files.firstOrNull { it.name.endsWith(".webp") }
-        // An animated emote averages about 190 KB and a still frame of it about 2 KB, so grids
-        // use the still. A static emote has no separate still; it is its own.
-        val still = file
-            ?.takeIf { it.frameCount > 1 && it.staticName.isNotBlank() && it.staticName != it.name }
-            ?.let { "$base/${it.staticName}" }
-        Emote(
-            name = active.name,
-            url = "$base/${file?.name ?: "2x.webp"}",
-            width = file?.width?.takeIf { it > 0 },
-            height = file?.height?.takeIf { it > 0 },
-            source = EmoteSource.SevenTv,
-            stillUrl = still,
-        )
-    }
+    private fun toEmotes(set: SevenTvSet): List<Emote> =
+        set.emotes.mapNotNull { active ->
+            val host = active.data?.host ?: return@mapNotNull null
+            if (host.url.isBlank()) return@mapNotNull null
+            val base = if (host.url.startsWith("//")) "https:${host.url}" else host.url
+            val file =
+                host.files.firstOrNull { it.name == "2x.webp" }
+                    ?: host.files.firstOrNull { it.name.endsWith(".webp") }
+            // An animated emote averages about 190 KB and a still frame of it about 2 KB, so grids
+            // use the still. A static emote has no separate still; it is its own.
+            val still =
+                file
+                    ?.takeIf { it.frameCount > 1 && it.staticName.isNotBlank() && it.staticName != it.name }
+                    ?.let { "$base/${it.staticName}" }
+            Emote(
+                name = active.name,
+                url = "$base/${file?.name ?: "2x.webp"}",
+                width = file?.width?.takeIf { it > 0 },
+                height = file?.height?.takeIf { it > 0 },
+                source = EmoteSource.SevenTv,
+                stillUrl = still,
+            )
+        }
 }
 
-class SevenTvProvider(private val fetcher: TextFetcher) : EmoteProvider {
+class SevenTvProvider(
+    private val fetcher: TextFetcher,
+) : EmoteProvider {
     override val source = EmoteSource.SevenTv
 
-    override suspend fun global(): List<Emote> =
-        SevenTvParser.parseSet(fetcher.fetchText("https://7tv.io/v3/emote-sets/global"))
+    override suspend fun global(): List<Emote> = SevenTvParser.parseSet(fetcher.fetchText("https://7tv.io/v3/emote-sets/global"))
 
     override suspend fun channel(roomId: String): List<Emote> =
         SevenTvParser.parseUser(fetcher.fetchText("https://7tv.io/v3/users/twitch/$roomId"))
@@ -105,8 +124,7 @@ internal data class BttvUser(
 )
 
 object BttvParser {
-    fun parseGlobal(body: String): List<Emote> =
-        json.decodeFromString<List<BttvEmote>>(body).map(::toEmote)
+    fun parseGlobal(body: String): List<Emote> = json.decodeFromString<List<BttvEmote>>(body).map(::toEmote)
 
     fun parseUser(body: String): List<Emote> {
         val user = json.decodeFromString<BttvUser>(body)
@@ -126,7 +144,9 @@ object BttvParser {
     }
 }
 
-class BttvProvider(private val fetcher: TextFetcher) : EmoteProvider {
+class BttvProvider(
+    private val fetcher: TextFetcher,
+) : EmoteProvider {
     override val source = EmoteSource.Bttv
 
     override suspend fun global(): List<Emote> =
@@ -145,7 +165,9 @@ internal data class FfzResponse(
 )
 
 @Serializable
-internal data class FfzSet(val emoticons: List<FfzEmote> = emptyList())
+internal data class FfzSet(
+    val emoticons: List<FfzEmote> = emptyList(),
+)
 
 @Serializable
 internal data class FfzEmote(
@@ -169,7 +191,11 @@ object FfzParser {
 
     /** A room response contains only that room's sets. */
     fun parseRoom(body: String): List<Emote> =
-        json.decodeFromString<FfzResponse>(body).sets.values.flatMap { it.emoticons }.mapNotNull(::toEmote)
+        json
+            .decodeFromString<FfzResponse>(body)
+            .sets.values
+            .flatMap { it.emoticons }
+            .mapNotNull(::toEmote)
 
     private fun toEmote(emote: FfzEmote): Emote? {
         val raw = emote.urls["2"] ?: emote.urls["1"] ?: emote.urls.values.firstOrNull() ?: return null
@@ -183,11 +209,12 @@ object FfzParser {
     }
 }
 
-class FfzProvider(private val fetcher: TextFetcher) : EmoteProvider {
+class FfzProvider(
+    private val fetcher: TextFetcher,
+) : EmoteProvider {
     override val source = EmoteSource.Ffz
 
-    override suspend fun global(): List<Emote> =
-        FfzParser.parseGlobal(fetcher.fetchText("https://api.frankerfacez.com/v1/set/global"))
+    override suspend fun global(): List<Emote> = FfzParser.parseGlobal(fetcher.fetchText("https://api.frankerfacez.com/v1/set/global"))
 
     override suspend fun channel(roomId: String): List<Emote> =
         FfzParser.parseRoom(fetcher.fetchText("https://api.frankerfacez.com/v1/room/id/$roomId"))

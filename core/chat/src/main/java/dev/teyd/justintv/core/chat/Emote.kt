@@ -22,11 +22,12 @@ data class Emote(
     val stillUrl: String? = null,
 ) {
     val aspectRatio: Float
-        get() = if (width != null && height != null && width > 0 && height > 0) {
-            (width.toFloat() / height).coerceIn(MIN_ASPECT, MAX_ASPECT)
-        } else {
-            1f
-        }
+        get() =
+            if (width != null && height != null && width > 0 && height > 0) {
+                (width.toFloat() / height).coerceIn(MIN_ASPECT, MAX_ASPECT)
+            } else {
+                1f
+            }
 
     private companion object {
         // Keeps one absurd emote from taking over a chat line.
@@ -36,8 +37,9 @@ data class Emote(
 }
 
 /** A name to emote lookup. Later entries win, so callers add global sets before channel sets. */
-class EmoteIndex private constructor(private val byName: Map<String, Emote>) {
-
+class EmoteIndex private constructor(
+    private val byName: Map<String, Emote>,
+) {
     operator fun get(name: String): Emote? = byName[name]
 
     val size: Int get() = byName.size

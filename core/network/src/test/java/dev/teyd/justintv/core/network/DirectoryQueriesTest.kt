@@ -4,7 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class DirectoryQueriesTest {
-
     @Test
     fun `top streams without a filter has no options`() {
         val query = DirectoryQueries.topStreams(emptySet())

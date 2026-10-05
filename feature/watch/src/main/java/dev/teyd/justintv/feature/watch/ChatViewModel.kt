@@ -12,7 +12,6 @@ import dev.teyd.justintv.core.data.ChatSettingsStore
 import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.network.AuthState
 import dev.teyd.justintv.core.network.TwitchSession
-import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -40,147 +40,151 @@ data class ChatUiState(
  * deliver dozens of lines a second, and one list update per line would make the screen stutter.
  */
 @HiltViewModel
-class ChatViewModel @Inject constructor(
-    private val session: ChatSession,
-    private val twitch: TwitchSession,
-    private val chatSettings: ChatSettingsStore,
-) : ViewModel() {
+class ChatViewModel
+    @Inject
+    constructor(
+        private val session: ChatSession,
+        private val twitch: TwitchSession,
+        private val chatSettings: ChatSettingsStore,
+    ) : ViewModel() {
+        private val _state = MutableStateFlow(ChatUiState())
+        val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
-    private val _state = MutableStateFlow(ChatUiState())
-    val state: StateFlow<ChatUiState> = _state.asStateFlow()
+        private var login: String = ""
+        private var collectJob: Job? = null
+        private val pending = ArrayList<ChatMessage>()
+        private var flushJob: Job? = null
+        private var showInput = true
+        private var auth: AuthState = AuthState.LoggedOut
+        private var sendError: String? = null
 
-    private var login: String = ""
-    private var collectJob: Job? = null
-    private val pending = ArrayList<ChatMessage>()
-    private var flushJob: Job? = null
-    private var showInput = true
-    private var auth: AuthState = AuthState.LoggedOut
-    private var sendError: String? = null
-
-    init {
-        viewModelScope.launch {
-            chatSettings.showInput.collect {
-                showInput = it
-                publishComposer()
-            }
-        }
-        viewModelScope.launch {
-            twitch.state.collect {
-                auth = it
-                publishComposer()
-            }
-        }
-    }
-
-    /** Keeps the current room if [channel] is the one already open. */
-    fun open(channel: String) {
-        if (channel.isBlank() || channel == login) return
-        stop()
-        login = channel
-        _state.value = ChatUiState()
-        publishComposer()
-        collectJob = viewModelScope.launch {
-            launch {
-                session.connection.collect { connection ->
-                    _state.update { it.copy(status = connection.status) }
+        init {
+            viewModelScope.launch {
+                chatSettings.showInput.collect {
+                    showInput = it
+                    publishComposer()
                 }
             }
-            launch {
-                // The index was built with whatever was switched on at the time. Filtering here
-                // makes a provider disappear from the picker as soon as it is turned off.
-                combine(
-                    session.emotes,
-                    chatSettings.sevenTv,
-                    chatSettings.bttv,
-                    chatSettings.ffz,
-                ) { loaded, sevenTv, bttv, ffz ->
-                    loaded.filter { emote ->
-                        when (emote.source) {
-                            EmoteSource.SevenTv -> sevenTv
-                            EmoteSource.Bttv -> bttv
-                            EmoteSource.Ffz -> ffz
+            viewModelScope.launch {
+                twitch.state.collect {
+                    auth = it
+                    publishComposer()
+                }
+            }
+        }
+
+        /** Keeps the current room if [channel] is the one already open. */
+        fun open(channel: String) {
+            if (channel.isBlank() || channel == login) return
+            stop()
+            login = channel
+            _state.value = ChatUiState()
+            publishComposer()
+            collectJob =
+                viewModelScope.launch {
+                    launch {
+                        session.connection.collect { connection ->
+                            _state.update { it.copy(status = connection.status) }
                         }
                     }
-                }.collect { enabled ->
-                    _state.update { it.copy(emotes = enabled) }
+                    launch {
+                        // The index was built with whatever was switched on at the time. Filtering here
+                        // makes a provider disappear from the picker as soon as it is turned off.
+                        combine(
+                            session.emotes,
+                            chatSettings.sevenTv,
+                            chatSettings.bttv,
+                            chatSettings.ffz,
+                        ) { loaded, sevenTv, bttv, ffz ->
+                            loaded.filter { emote ->
+                                when (emote.source) {
+                                    EmoteSource.SevenTv -> sevenTv
+                                    EmoteSource.Bttv -> bttv
+                                    EmoteSource.Ffz -> ffz
+                                }
+                            }
+                        }.collect { enabled ->
+                            _state.update { it.copy(emotes = enabled) }
+                        }
+                    }
+                    session.messages(channel).collect { message ->
+                        pending += message
+                        scheduleFlush()
+                    }
+                }
+        }
+
+        fun send(text: String) {
+            val signedIn = auth as? AuthState.LoggedIn ?: return
+            if (!signedIn.canChat) {
+                twitch.grantChat()
+                return
+            }
+            val channel = login
+            viewModelScope.launch {
+                sendError = null
+                publishComposer()
+                try {
+                    val token = twitch.accessToken() ?: throw ChatSendException("Not signed in")
+                    session.send(channel, signedIn.login, token, text)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    sendError = e.message ?: "Could not send"
+                    publishComposer()
                 }
             }
-            session.messages(channel).collect { message ->
-                pending += message
-                scheduleFlush()
-            }
         }
-    }
 
-    fun send(text: String) {
-        val signedIn = auth as? AuthState.LoggedIn ?: return
-        if (!signedIn.canChat) {
-            twitch.grantChat()
-            return
+        fun allowChat() = twitch.grantChat()
+
+        /** Drops the room. Called when playback stops, not when the watch screen is minimised. */
+        fun close() {
+            stop()
+            _state.value = ChatUiState()
         }
-        val channel = login
-        viewModelScope.launch {
-            sendError = null
-            publishComposer()
-            try {
-                val token = twitch.accessToken() ?: throw ChatSendException("Not signed in")
-                session.send(channel, signedIn.login, token, text)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                sendError = e.message ?: "Could not send"
-                publishComposer()
-            }
-        }
-    }
 
-    fun allowChat() = twitch.grantChat()
-
-    /** Drops the room. Called when playback stops, not when the watch screen is minimised. */
-    fun close() {
-        stop()
-        _state.value = ChatUiState()
-    }
-
-    private fun stop() {
-        login = ""
-        collectJob?.cancel()
-        collectJob = null
-        flushJob?.cancel()
-        flushJob = null
-        pending.clear()
-    }
-
-    private fun publishComposer() {
-        val signedIn = auth as? AuthState.LoggedIn
-        val pending = auth as? AuthState.Pending
-        _state.update {
-            it.copy(
-                composer = ComposerState(
-                    visible = showInput && (signedIn != null || pending != null),
-                    canSend = signedIn?.canChat == true,
-                    needsChatPermission = signedIn != null && !signedIn.canChat,
-                    approvalCode = pending?.userCode,
-                    error = sendError,
-                ),
-            )
-        }
-    }
-
-    private fun scheduleFlush() {
-        if (flushJob?.isActive == true) return
-        flushJob = viewModelScope.launch {
-            delay(FLUSH_WINDOW_MS)
-            val batch = ArrayList(pending)
+        private fun stop() {
+            login = ""
+            collectJob?.cancel()
+            collectJob = null
+            flushJob?.cancel()
+            flushJob = null
             pending.clear()
-            _state.update { it.copy(messages = (it.messages + batch).takeLast(MAX_MESSAGES)) }
+        }
+
+        private fun publishComposer() {
+            val signedIn = auth as? AuthState.LoggedIn
+            val pending = auth as? AuthState.Pending
+            _state.update {
+                it.copy(
+                    composer =
+                        ComposerState(
+                            visible = showInput && (signedIn != null || pending != null),
+                            canSend = signedIn?.canChat == true,
+                            needsChatPermission = signedIn != null && !signedIn.canChat,
+                            approvalCode = pending?.userCode,
+                            error = sendError,
+                        ),
+                )
+            }
+        }
+
+        private fun scheduleFlush() {
+            if (flushJob?.isActive == true) return
+            flushJob =
+                viewModelScope.launch {
+                    delay(FLUSH_WINDOW_MS)
+                    val batch = ArrayList(pending)
+                    pending.clear()
+                    _state.update { it.copy(messages = (it.messages + batch).takeLast(MAX_MESSAGES)) }
+                }
+        }
+
+        companion object {
+            const val FLUSH_WINDOW_MS = 100L
+
+            /** Older messages are dropped; nobody scrolls back through thousands of lines. */
+            const val MAX_MESSAGES = 250
         }
     }
-
-    companion object {
-        const val FLUSH_WINDOW_MS = 100L
-
-        /** Older messages are dropped; nobody scrolls back through thousands of lines. */
-        const val MAX_MESSAGES = 250
-    }
-}

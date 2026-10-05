@@ -1,5 +1,6 @@
 package dev.teyd.justintv.feature.settings
 
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import android.content.Intent
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,7 +54,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.teyd.justintv.core.data.ThemeMode
 import dev.teyd.justintv.core.network.AuthState
 
-private enum class SettingsPage(val title: String) {
+private enum class SettingsPage(
+    val title: String,
+) {
     Hub("Settings"),
     Account("Account"),
     Playback("Playback"),
@@ -94,57 +96,77 @@ fun SettingsScreen(
         },
     ) { padding ->
         when (page) {
-            SettingsPage.Hub -> SettingsHub(
-                account = account,
-                onOpen = { page = it },
-                modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
-                contentPadding = padding,
-            )
-            SettingsPage.Account -> AccountPage(
-                state = account,
-                onStart = accountViewModel::start,
-                onLogout = accountViewModel::logout,
-                modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
-                contentPadding = padding,
-            )
-            SettingsPage.Playback -> PlaybackPage(
-                state = state,
-                onBackground = viewModel::setBackgroundPlayback,
-                onPictureInPicture = viewModel::setPictureInPicture,
-                modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
-                contentPadding = padding,
-            )
-            SettingsPage.AdBlock -> AdBlockPage(
-                state = state,
-                onAdBlock = viewModel::setAdBlockEnabled,
-                onToggleProxy = viewModel::setProxyEnabled,
-                onCheck = viewModel::checkProxies,
-                modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
-                contentPadding = padding,
-            )
-            SettingsPage.Chat -> ChatPage(
-                state = state,
-                onRecent = viewModel::setRecentMessages,
-                onLimit = viewModel::setRecentMessageLimit,
-                onSevenTv = viewModel::setSevenTv,
-                onBttv = viewModel::setBttv,
-                onFfz = viewModel::setFfz,
-                onShowInput = viewModel::setShowChatInput,
-                modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
-                contentPadding = padding,
-            )
-            SettingsPage.Appearance -> AppearancePage(
-                state = state,
-                onTheme = viewModel::setThemeMode,
-                onDynamic = viewModel::setDynamicColor,
-                modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
-                contentPadding = padding,
-            )
-            SettingsPage.About -> AboutPage(
-                versionName = version,
-                modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
-                contentPadding = padding,
-            )
+            SettingsPage.Hub -> {
+                SettingsHub(
+                    account = account,
+                    onOpen = { page = it },
+                    modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
+                    contentPadding = padding,
+                )
+            }
+
+            SettingsPage.Account -> {
+                AccountPage(
+                    state = account,
+                    onStart = accountViewModel::start,
+                    onLogout = accountViewModel::logout,
+                    modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
+                    contentPadding = padding,
+                )
+            }
+
+            SettingsPage.Playback -> {
+                PlaybackPage(
+                    state = state,
+                    onBackground = viewModel::setBackgroundPlayback,
+                    onPictureInPicture = viewModel::setPictureInPicture,
+                    modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
+                    contentPadding = padding,
+                )
+            }
+
+            SettingsPage.AdBlock -> {
+                AdBlockPage(
+                    state = state,
+                    onAdBlock = viewModel::setAdBlockEnabled,
+                    onToggleProxy = viewModel::setProxyEnabled,
+                    onCheck = viewModel::checkProxies,
+                    modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
+                    contentPadding = padding,
+                )
+            }
+
+            SettingsPage.Chat -> {
+                ChatPage(
+                    state = state,
+                    onRecent = viewModel::setRecentMessages,
+                    onLimit = viewModel::setRecentMessageLimit,
+                    onSevenTv = viewModel::setSevenTv,
+                    onBttv = viewModel::setBttv,
+                    onFfz = viewModel::setFfz,
+                    onShowInput = viewModel::setShowChatInput,
+                    modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
+                    contentPadding = padding,
+                )
+            }
+
+            SettingsPage.Appearance -> {
+                AppearancePage(
+                    state = state,
+                    onTheme = viewModel::setThemeMode,
+                    onDynamic = viewModel::setDynamicColor,
+                    modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
+                    contentPadding = padding,
+                )
+            }
+
+            SettingsPage.About -> {
+                AboutPage(
+                    versionName = version,
+                    modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
+                    contentPadding = padding,
+                )
+            }
         }
     }
 }
@@ -153,10 +175,11 @@ fun SettingsScreen(
 private fun rememberVersionName(): String {
     val context = LocalContext.current
     return androidx.compose.runtime.remember {
-        context.packageManager.getPackageInfo(
-            context.packageName,
-            PackageManager.PackageInfoFlags.of(0),
-        ).versionName ?: "0.1.0"
+        context.packageManager
+            .getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(0),
+            ).versionName ?: "0.1.0"
     }
 }
 
@@ -166,7 +189,9 @@ private fun SettingsHub(
     account: AuthState,
     onOpen: (SettingsPage) -> Unit,
     modifier: Modifier = Modifier,
-    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(),
+    contentPadding: androidx.compose.foundation.layout.PaddingValues =
+        androidx.compose.foundation.layout
+            .PaddingValues(),
 ) {
     LazyColumn(modifier = modifier, contentPadding = contentPadding) {
         item {
@@ -220,17 +245,21 @@ private fun AccountPage(
     val context = LocalContext.current
     Column(
         modifier = modifier.padding(contentPadding).padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        verticalArrangement =
+            androidx.compose.foundation.layout.Arrangement
+                .spacedBy(12.dp),
     ) {
         when (state) {
             AuthState.LoggedOut -> {
                 Text("Not signed in", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "Sign in to see the channels you follow. Twitch shows a code; you approve it on their site. The password is never typed here.",
+                    "Sign in to see the channels you follow. Twitch shows a code; you approve it on their site. " +
+                        "The password is never typed here.",
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Button(onClick = onStart) { Text("Sign in") }
             }
+
             is AuthState.Pending -> {
                 Text("Enter this code on Twitch", style = MaterialTheme.typography.titleLarge)
                 Text(state.userCode, style = MaterialTheme.typography.displaySmall)
@@ -239,11 +268,13 @@ private fun AccountPage(
                     context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(state.verificationUri)))
                 }) { Text("Open Twitch") }
             }
+
             is AuthState.LoggedIn -> {
                 Text(state.displayName, style = MaterialTheme.typography.titleLarge)
                 Text(state.login, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(onClick = onLogout) { Text("Log out") }
             }
+
             is AuthState.Failed -> {
                 Text("Could not sign in", style = MaterialTheme.typography.titleLarge)
                 Text(state.message, style = MaterialTheme.typography.bodyLarge)
@@ -253,19 +284,21 @@ private fun AccountPage(
     }
 }
 
-private fun accountHeadline(state: AuthState): String = when (state) {
-    is AuthState.LoggedIn -> state.displayName
-    is AuthState.Pending -> "Waiting for Twitch"
-    is AuthState.Failed -> "Sign-in failed"
-    AuthState.LoggedOut -> "Not signed in"
-}
+private fun accountHeadline(state: AuthState): String =
+    when (state) {
+        is AuthState.LoggedIn -> state.displayName
+        is AuthState.Pending -> "Waiting for Twitch"
+        is AuthState.Failed -> "Sign-in failed"
+        AuthState.LoggedOut -> "Not signed in"
+    }
 
-private fun accountSupporting(state: AuthState): String = when (state) {
-    is AuthState.LoggedIn -> "Signed in as ${state.login}"
-    is AuthState.Pending -> "Code ${state.userCode}"
-    is AuthState.Failed -> state.message
-    AuthState.LoggedOut -> "Sign in to see the channels you follow."
-}
+private fun accountSupporting(state: AuthState): String =
+    when (state) {
+        is AuthState.LoggedIn -> "Signed in as ${state.login}"
+        is AuthState.Pending -> "Code ${state.userCode}"
+        is AuthState.Failed -> state.message
+        AuthState.LoggedOut -> "Sign in to see the channels you follow."
+    }
 
 @Composable
 private fun HubRow(
@@ -342,9 +375,10 @@ private fun AdBlockPage(
         }
         item {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 4.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -446,9 +480,10 @@ private fun AppearancePage(
         item { SectionHeader("Theme") }
         item {
             SingleChoiceSegmentedButtonRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 modes.forEachIndexed { index, mode ->
                     SegmentedButton(
@@ -499,7 +534,9 @@ private fun AboutPage(
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "A distraction-free Twitch client. Live streams and, once you sign in, the channels you follow. No recommendations, no clips, no analytics.",
+            text =
+                "A distraction-free Twitch client. Live streams and, once you sign in, the channels you follow. " +
+                    "No recommendations, no clips, no analytics.",
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(Modifier.height(12.dp))
@@ -533,16 +570,18 @@ private fun ProxyRow(
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = when (status.online) {
-                        true -> "Online"
-                        false -> "Offline"
-                        null -> "Checking…"
-                    },
-                    color = when (status.online) {
-                        true -> MaterialTheme.colorScheme.primary
-                        false -> MaterialTheme.colorScheme.error
-                        null -> MaterialTheme.colorScheme.onSurfaceVariant
-                    },
+                    text =
+                        when (status.online) {
+                            true -> "Online"
+                            false -> "Offline"
+                            null -> "Checking…"
+                        },
+                    color =
+                        when (status.online) {
+                            true -> MaterialTheme.colorScheme.primary
+                            false -> MaterialTheme.colorScheme.error
+                            null -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                     style = MaterialTheme.typography.labelLarge,
                 )
                 Spacer(Modifier.size(8.dp))
@@ -563,9 +602,10 @@ private fun MessageLimitRow(
     onSelect: (Int) -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Text(
             text = "Messages to load",
@@ -576,10 +616,11 @@ private fun MessageLimitRow(
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             SettingsViewModel.MESSAGE_LIMIT_OPTIONS.forEachIndexed { index, option ->
                 SegmentedButton(
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = SettingsViewModel.MESSAGE_LIMIT_OPTIONS.size,
-                    ),
+                    shape =
+                        SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = SettingsViewModel.MESSAGE_LIMIT_OPTIONS.size,
+                        ),
                     onClick = { onSelect(option) },
                     selected = option == limit,
                     enabled = enabled,

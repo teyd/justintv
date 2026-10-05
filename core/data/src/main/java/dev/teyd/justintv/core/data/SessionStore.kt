@@ -14,8 +14,9 @@ import kotlinx.coroutines.flow.map
  * logged out everywhere. The screens already read this, so wiring login in is a matter of
  * calling [save].
  */
-class SessionStore(private val dataStore: DataStore<Preferences>) {
-
+class SessionStore(
+    private val dataStore: DataStore<Preferences>,
+) {
     private val tokenKey = stringPreferencesKey("access_token")
 
     val isLoggedIn: Flow<Boolean> = dataStore.data.map { !it[tokenKey].isNullOrBlank() }

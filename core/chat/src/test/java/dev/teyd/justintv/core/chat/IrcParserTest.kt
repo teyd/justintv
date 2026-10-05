@@ -4,7 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class IrcParserTest {
-
     private val privmsg =
         "@badge-info=;color=#FF0000;display-name=Some\\sUser;emotes=25:0-4;id=abc-123;room-id=92038375;tmi-sent-ts=1 " +
             ":someuser!someuser@someuser.tmi.twitch.tv PRIVMSG #caedrel :Kappa hello there"

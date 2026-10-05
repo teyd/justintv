@@ -13,8 +13,9 @@ import kotlinx.coroutines.flow.map
  *
  * All switches default to on; the limit only applies while [recentMessages] is on.
  */
-class ChatSettingsStore(private val dataStore: DataStore<Preferences>) {
-
+class ChatSettingsStore(
+    private val dataStore: DataStore<Preferences>,
+) {
     private val recentMessagesKey = booleanPreferencesKey("chat_recent_messages")
     private val recentMessageLimitKey = intPreferencesKey("chat_recent_message_limit")
     private val sevenTvKey = booleanPreferencesKey("chat_7tv")
@@ -26,10 +27,11 @@ class ChatSettingsStore(private val dataStore: DataStore<Preferences>) {
     val recentMessages: Flow<Boolean> = dataStore.data.map { it[recentMessagesKey] != false }
 
     /** How many history messages to request. */
-    val recentMessageLimit: Flow<Int> = dataStore.data.map {
-        (it[recentMessageLimitKey] ?: DEFAULT_RECENT_MESSAGE_LIMIT)
-            .coerceIn(MIN_RECENT_MESSAGE_LIMIT, MAX_RECENT_MESSAGE_LIMIT)
-    }
+    val recentMessageLimit: Flow<Int> =
+        dataStore.data.map {
+            (it[recentMessageLimitKey] ?: DEFAULT_RECENT_MESSAGE_LIMIT)
+                .coerceIn(MIN_RECENT_MESSAGE_LIMIT, MAX_RECENT_MESSAGE_LIMIT)
+        }
 
     val sevenTv: Flow<Boolean> = dataStore.data.map { it[sevenTvKey] != false }
 

@@ -5,19 +5,21 @@ import dev.teyd.justintv.core.model.ChatSegment
 import org.junit.Test
 
 class ChatMessageParserTest {
+    private val index =
+        EmoteIndex
+            .Builder()
+            .addAll(
+                listOf(
+                    Emote("KEKW", "https://cdn.7tv.app/emote/kekw/2x.webp", 64, 64, EmoteSource.SevenTv),
+                    Emote("widepeepo", "https://cdn.7tv.app/emote/wide/2x.webp", 128, 32, EmoteSource.SevenTv),
+                    Emote("OMEGALUL", "https://cdn.betterttv.net/emote/omg/2x.webp", source = EmoteSource.Bttv),
+                ),
+            ).build()
 
-    private val index = EmoteIndex.Builder()
-        .addAll(
-            listOf(
-                Emote("KEKW", "https://cdn.7tv.app/emote/kekw/2x.webp", 64, 64, EmoteSource.SevenTv),
-                Emote("widepeepo", "https://cdn.7tv.app/emote/wide/2x.webp", 128, 32, EmoteSource.SevenTv),
-                Emote("OMEGALUL", "https://cdn.betterttv.net/emote/omg/2x.webp", source = EmoteSource.Bttv),
-            ),
-        )
-        .build()
-
-    private fun privmsg(text: String, tags: String = "display-name=Viewer;id=m1"): IrcMessage =
-        IrcParser.parse("@$tags :viewer!viewer@viewer.tmi.twitch.tv PRIVMSG #chan :$text")!!
+    private fun privmsg(
+        text: String,
+        tags: String = "display-name=Viewer;id=m1",
+    ): IrcMessage = IrcParser.parse("@$tags :viewer!viewer@viewer.tmi.twitch.tv PRIVMSG #chan :$text")!!
 
     @Test
     fun `plain text stays one text segment`() {
@@ -64,19 +66,23 @@ class ChatMessageParserTest {
     fun `consecutive emotes keep their separating space`() {
         val message = ChatMessageParser.parse(privmsg("KEKW KEKW OMEGALUL"), index)!!
 
-        assertThat(message.segments.map { it::class }).containsExactly(
-            ChatSegment.Emote::class, ChatSegment.Text::class,
-            ChatSegment.Emote::class, ChatSegment.Text::class,
-            ChatSegment.Emote::class,
-        ).inOrder()
+        assertThat(message.segments.map { it::class })
+            .containsExactly(
+                ChatSegment.Emote::class,
+                ChatSegment.Text::class,
+                ChatSegment.Emote::class,
+                ChatSegment.Text::class,
+                ChatSegment.Emote::class,
+            ).inOrder()
     }
 
     @Test
     fun `twitch native emotes come from the tag ranges`() {
-        val message = ChatMessageParser.parse(
-            privmsg("Kappa hello Kappa", tags = "display-name=V;id=m2;emotes=25:0-4,12-16"),
-            EmoteIndex.EMPTY,
-        )!!
+        val message =
+            ChatMessageParser.parse(
+                privmsg("Kappa hello Kappa", tags = "display-name=V;id=m2;emotes=25:0-4,12-16"),
+                EmoteIndex.EMPTY,
+            )!!
 
         val emotes = message.segments.filterIsInstance<ChatSegment.Emote>()
         assertThat(emotes.map { it.name }).containsExactly("Kappa", "Kappa")
@@ -86,33 +92,42 @@ class ChatMessageParserTest {
 
     @Test
     fun `twitch ranges and third party emotes mix in one message`() {
-        val message = ChatMessageParser.parse(
-            privmsg("Kappa KEKW Kappa", tags = "display-name=V;id=m3;emotes=25:0-4,11-15"),
-            index,
-        )!!
+        val message =
+            ChatMessageParser.parse(
+                privmsg("Kappa KEKW Kappa", tags = "display-name=V;id=m3;emotes=25:0-4,11-15"),
+                index,
+            )!!
 
         assertThat(message.segments.filterIsInstance<ChatSegment.Emote>().map { it.name })
-            .containsExactly("Kappa", "KEKW", "Kappa").inOrder()
+            .containsExactly("Kappa", "KEKW", "Kappa")
+            .inOrder()
     }
 
     @Test
     fun `ranges count code points, not utf16 units`() {
         // The party popper is one code point but two UTF-16 chars, so Kappa starts at index 2.
-        val message = ChatMessageParser.parse(
-            privmsg("\uD83C\uDF89 Kappa", tags = "display-name=V;id=m4;emotes=25:2-6"),
-            EmoteIndex.EMPTY,
-        )!!
+        val message =
+            ChatMessageParser.parse(
+                privmsg("\uD83C\uDF89 Kappa", tags = "display-name=V;id=m4;emotes=25:2-6"),
+                EmoteIndex.EMPTY,
+            )!!
 
-        assertThat(message.segments.filterIsInstance<ChatSegment.Emote>().single().name).isEqualTo("Kappa")
+        assertThat(
+            message.segments
+                .filterIsInstance<ChatSegment.Emote>()
+                .single()
+                .name,
+        ).isEqualTo("Kappa")
         assertThat((message.segments.first() as ChatSegment.Text).text).isEqualTo("\uD83C\uDF89 ")
     }
 
     @Test
     fun `bad ranges are ignored instead of crashing`() {
-        val message = ChatMessageParser.parse(
-            privmsg("short", tags = "display-name=V;id=m5;emotes=25:40-50/1:3-1/9:abc"),
-            EmoteIndex.EMPTY,
-        )!!
+        val message =
+            ChatMessageParser.parse(
+                privmsg("short", tags = "display-name=V;id=m5;emotes=25:40-50/1:3-1/9:abc"),
+                EmoteIndex.EMPTY,
+            )!!
 
         assertThat(message.segments).containsExactly(ChatSegment.Text("short"))
     }

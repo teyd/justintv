@@ -7,7 +7,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Test
 
 class GqlRequestBuilderTest {
-
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
@@ -17,10 +16,14 @@ class GqlRequestBuilderTest {
         val root = json.parseToJsonElement(body).jsonObject
         assertThat(root["operationName"]?.jsonPrimitive?.content).isEqualTo("PlaybackAccessToken")
 
-        val hash = root["extensions"]
-            ?.jsonObject?.get("persistedQuery")
-            ?.jsonObject?.get("sha256Hash")
-            ?.jsonPrimitive?.content
+        val hash =
+            root["extensions"]
+                ?.jsonObject
+                ?.get("persistedQuery")
+                ?.jsonObject
+                ?.get("sha256Hash")
+                ?.jsonPrimitive
+                ?.content
         assertThat(hash).isEqualTo(GqlRequestBuilder.ACCESS_TOKEN_QUERY_HASH)
 
         val variables = root["variables"]!!.jsonObject

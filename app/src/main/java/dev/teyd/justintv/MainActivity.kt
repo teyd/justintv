@@ -35,11 +35,12 @@ class MainActivity : ComponentActivity() {
             val appearance = hiltViewModel<AppearanceViewModel>()
             val mode by appearance.themeMode.collectAsStateWithLifecycle()
             val dynamicColor by appearance.dynamicColor.collectAsStateWithLifecycle()
-            val darkTheme = when (mode) {
-                ThemeMode.System -> isSystemInDarkTheme()
-                ThemeMode.Light -> false
-                ThemeMode.Dark -> true
-            }
+            val darkTheme =
+                when (mode) {
+                    ThemeMode.System -> isSystemInDarkTheme()
+                    ThemeMode.Light -> false
+                    ThemeMode.Dark -> true
+                }
             // uiMode is handled in place, so the system-bar icon contrast has to follow the
             // chosen palette explicitly. The default detector would keep the device theme.
             val barColor = Color.Transparent.toArgb()
@@ -53,10 +54,11 @@ class MainActivity : ComponentActivity() {
                 JustintvApp()
             }
         }
-        val receiver = Pip.receiver(
-            onPlay = { playbackGate.holder?.resume() },
-            onPause = { playbackGate.holder?.pause() },
-        )
+        val receiver =
+            Pip.receiver(
+                onPlay = { playbackGate.holder?.resume() },
+                onPause = { playbackGate.holder?.pause() },
+            )
         Pip.register(this, receiver)
         pipReceiver = receiver
     }

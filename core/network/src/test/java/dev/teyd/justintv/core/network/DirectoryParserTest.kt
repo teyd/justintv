@@ -5,9 +5,9 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class DirectoryParserTest {
-
     /** Trimmed from a real anonymous `streams` response. */
-    private val streamsBody = """
+    private val streamsBody =
+        """
         {"data":{"streams":{"edges":[
           {"cursor":"abc","node":{"id":"317931542500","title":"DEMACIA CUP NAVI VS FLY","viewersCount":51779,
             "previewImageURL":"https://static-cdn.jtvnw.net/previews-ttv/live_user_caedrel-440x248.jpg",
@@ -19,13 +19,14 @@ class DirectoryParserTest {
             "broadcaster":{"login":"quietone","displayName":null,"profileImageURL":null,"broadcastSettings":null},
             "game":null}}
         ]}}}
-    """.trimIndent()
+        """.trimIndent()
 
     @Test
     fun `a live channel gives viewers and start time`() {
-        val live = DirectoryParser.parseChannelLive(
-            """{"data":{"user":{"stream":{"viewersCount":50967,"createdAt":"2026-10-05T08:37:24Z"}}}}""",
-        )
+        val live =
+            DirectoryParser.parseChannelLive(
+                """{"data":{"user":{"stream":{"viewersCount":50967,"createdAt":"2026-10-05T08:37:24Z"}}}}""",
+            )
         assertThat(live).isEqualTo(ChannelLive(50967, "2026-10-05T08:37:24Z"))
     }
 
@@ -66,12 +67,13 @@ class DirectoryParserTest {
 
     @Test
     fun `parses streams of a single game`() {
-        val body = """
+        val body =
+            """
             {"data":{"game":{"streams":{"edges":[
               {"node":{"id":"9","title":"Chatting","viewersCount":5,
                 "broadcaster":{"login":"dracon","broadcastSettings":{"language":"DE"}}}}
             ]}}}}
-        """.trimIndent()
+            """.trimIndent()
 
         val streams = DirectoryParser.parseGameStreams(body)
 
@@ -88,13 +90,14 @@ class DirectoryParserTest {
 
     @Test
     fun `parses games with box art and viewers`() {
-        val body = """
+        val body =
+            """
             {"data":{"games":{"edges":[
               {"node":{"id":"509658","name":"Just Chatting","displayName":"Just Chatting",
                 "boxArtURL":"https://static-cdn.jtvnw.net/ttv-boxart/509658-285x380.jpg","viewersCount":162687}},
               {"node":{"id":"1","name":null,"displayName":null,"boxArtURL":null,"viewersCount":null}}
             ]}}}
-        """.trimIndent()
+            """.trimIndent()
 
         val games = DirectoryParser.parseTopGames(body)
 
@@ -110,9 +113,10 @@ class DirectoryParserTest {
     fun `an integrity failure becomes a message about logging in`() {
         val body = """{"errors":[{"message":"failed integrity check"}],"data":{"streams":null}}"""
 
-        val error = assertThrows(DirectoryException::class.java) {
-            DirectoryParser.parseTopStreams(body)
-        }
+        val error =
+            assertThrows(DirectoryException::class.java) {
+                DirectoryParser.parseTopStreams(body)
+            }
 
         assertThat(error).hasMessageThat().contains("Log in")
     }
@@ -121,18 +125,20 @@ class DirectoryParserTest {
     fun `other graphql errors surface their message`() {
         val body = """{"errors":[{"message":"argument 'first' value must be between 1 and 30."}]}"""
 
-        val error = assertThrows(DirectoryException::class.java) {
-            DirectoryParser.parseTopStreams(body)
-        }
+        val error =
+            assertThrows(DirectoryException::class.java) {
+                DirectoryParser.parseTopStreams(body)
+            }
 
         assertThat(error).hasMessageThat().contains("between 1 and 30")
     }
 
     @Test
     fun `an html error page is reported as unreadable`() {
-        val error = assertThrows(DirectoryException::class.java) {
-            DirectoryParser.parseTopGames("<html>bad gateway</html>")
-        }
+        val error =
+            assertThrows(DirectoryException::class.java) {
+                DirectoryParser.parseTopGames("<html>bad gateway</html>")
+            }
 
         assertThat(error).hasMessageThat().contains("Unreadable")
     }

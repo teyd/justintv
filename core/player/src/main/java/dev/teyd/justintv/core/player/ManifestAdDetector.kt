@@ -12,7 +12,6 @@ import dev.teyd.justintv.core.adfree.AdMarkerRules
  * at any time, which only shows up here. Same rules object, so both checks stay in sync.
  */
 object ManifestAdDetector {
-
     fun hasAdMarkers(manifest: HlsManifest?): Boolean {
         val playlist = manifest?.mediaPlaylist ?: return false
 
@@ -39,18 +38,29 @@ object ManifestAdDetector {
     private fun isAd(interstitial: HlsMediaPlaylist.Interstitial): Boolean =
         AdMarkerRules.isAdDateRange(
             id = interstitial.id,
-            className = interstitial.clientDefinedAttributes
-                .firstOrNull { it.name == "CLASS" }
-                ?.textValue,
+            className =
+                interstitial.clientDefinedAttributes
+                    .firstOrNull { it.name == "CLASS" }
+                    ?.textValue,
             attributeNames = interstitial.clientDefinedAttributes.map { it.name },
         )
 
-    private fun interstitialEndUs(interstitial: HlsMediaPlaylist.Interstitial): Long? = when {
-        interstitial.endDateUnixUs != C.TIME_UNSET -> interstitial.endDateUnixUs
-        interstitial.durationUs != C.TIME_UNSET -> interstitial.startDateUnixUs + interstitial.durationUs
-        interstitial.plannedDurationUs != C.TIME_UNSET ->
-            interstitial.startDateUnixUs + interstitial.plannedDurationUs
+    private fun interstitialEndUs(interstitial: HlsMediaPlaylist.Interstitial): Long? =
+        when {
+            interstitial.endDateUnixUs != C.TIME_UNSET -> {
+                interstitial.endDateUnixUs
+            }
 
-        else -> null
-    }
+            interstitial.durationUs != C.TIME_UNSET -> {
+                interstitial.startDateUnixUs + interstitial.durationUs
+            }
+
+            interstitial.plannedDurationUs != C.TIME_UNSET -> {
+                interstitial.startDateUnixUs + interstitial.plannedDurationUs
+            }
+
+            else -> {
+                null
+            }
+        }
 }

@@ -11,16 +11,17 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import dagger.hilt.android.HiltAndroidApp
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import dev.teyd.justintv.core.player.PlaybackGate
-import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import javax.inject.Inject
 
 @HiltAndroidApp
-class JustintvApplication : Application(), SingletonImageLoader.Factory {
-
+class JustintvApplication :
+    Application(),
+    SingletonImageLoader.Factory {
     @Inject
     lateinit var httpClient: OkHttpClient
 
@@ -39,35 +40,47 @@ class JustintvApplication : Application(), SingletonImageLoader.Factory {
      * connection pool.
      */
     override fun newImageLoader(context: PlatformContext): ImageLoader =
-        ImageLoader.Builder(context)
+        ImageLoader
+            .Builder(context)
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { httpClient }))
                 add(AnimatedImageDecoder.Factory())
-            }
-            .build()
+            }.build()
 
     override fun onCreate() {
         super.onCreate()
         appScope.launch {
             playbackSettings.backgroundPlayback.collect { playbackGate.allowBackground = it }
         }
-        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
-            override fun onActivityStarted(activity: Activity) {
-                startedActivities++
-                if (startedActivities == 1) playbackGate.onForeground()
-            }
+        registerActivityLifecycleCallbacks(
+            object : ActivityLifecycleCallbacks {
+                override fun onActivityStarted(activity: Activity) {
+                    startedActivities++
+                    if (startedActivities == 1) playbackGate.onForeground()
+                }
 
-            override fun onActivityStopped(activity: Activity) {
-                startedActivities--
-                val inPip = activity.isInPictureInPictureMode
-                if (startedActivities == 0 && !inPip) playbackGate.onBackground()
-            }
+                override fun onActivityStopped(activity: Activity) {
+                    startedActivities--
+                    val inPip = activity.isInPictureInPictureMode
+                    if (startedActivities == 0 && !inPip) playbackGate.onBackground()
+                }
 
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
-            override fun onActivityResumed(activity: Activity) = Unit
-            override fun onActivityPaused(activity: Activity) = Unit
-            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
-            override fun onActivityDestroyed(activity: Activity) = Unit
-        })
+                override fun onActivityCreated(
+                    activity: Activity,
+                    savedInstanceState: Bundle?,
+                ) = Unit
+
+                override fun onActivityResumed(activity: Activity) = Unit
+
+                override fun onActivityPaused(activity: Activity) = Unit
+
+                override fun onActivitySaveInstanceState(
+                    activity: Activity,
+                    outState: Bundle,
+                ) = Unit
+
+                override fun onActivityDestroyed(activity: Activity) = Unit
+            },
+        )
     }
 }

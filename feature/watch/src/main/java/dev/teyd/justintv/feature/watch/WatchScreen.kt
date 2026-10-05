@@ -67,10 +67,11 @@ fun WatchScreen(
         if (landscape) {
             Row(modifier = Modifier.fillMaxSize()) {
                 Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .background(Color.Black),
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(Color.Black),
                 )
                 if (state.landscapeChat) {
                     ChatPane(modifier = Modifier.width(LandscapeChatWidth).fillMaxHeight())
@@ -79,16 +80,18 @@ fun WatchScreen(
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.Black)
-                        .statusBarsPadding(),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(Color.Black)
+                            .statusBarsPadding(),
                 ) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
-                            .background(Color.Black),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f)
+                                .background(Color.Black),
                     )
                 }
                 ChatPane(modifier = Modifier.weight(1f).navigationBarsPadding())
@@ -99,15 +102,17 @@ fun WatchScreen(
 
 @Composable
 fun activityPlayback(): WatchViewModel {
-    val activity = LocalContext.current.findActivity() as? ComponentActivity
-        ?: error("Watch screen must be hosted in a ComponentActivity")
+    val activity =
+        LocalContext.current.findActivity() as? ComponentActivity
+            ?: error("Watch screen must be hosted in a ComponentActivity")
     return hiltViewModel(activity)
 }
 
 @Composable
 fun activityChat(): ChatViewModel {
-    val activity = LocalContext.current.findActivity() as? ComponentActivity
-        ?: error("Watch screen must be hosted in a ComponentActivity")
+    val activity =
+        LocalContext.current.findActivity() as? ComponentActivity
+            ?: error("Watch screen must be hosted in a ComponentActivity")
     return hiltViewModel(activity)
 }
 
@@ -140,7 +145,10 @@ private fun Immersive(enabled: Boolean) {
  * theme would otherwise flip back to light icons when the system is light.
  */
 @Composable
-private fun LightStatusBarIcons(statusBarLight: Boolean, navigationBarLight: Boolean) {
+private fun LightStatusBarIcons(
+    statusBarLight: Boolean,
+    navigationBarLight: Boolean,
+) {
     val view = LocalView.current
     val configuration = LocalConfiguration.current
     val appDark = LocalJustintvDarkTheme.current

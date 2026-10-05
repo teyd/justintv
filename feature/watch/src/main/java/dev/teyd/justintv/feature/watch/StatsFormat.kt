@@ -5,11 +5,9 @@ import java.util.Locale
 
 /** Text for the stats overlay. Pure functions so the formatting is covered by unit tests. */
 object StatsFormat {
-
     private const val UNKNOWN = "–"
 
-    fun seconds(ms: Long?): String =
-        if (ms == null || ms < 0) UNKNOWN else String.format(Locale.US, "%.1fs", ms / 1000.0)
+    fun seconds(ms: Long?): String = if (ms == null || ms < 0) UNKNOWN else String.format(Locale.US, "%.1fs", ms / 1000.0)
 
     fun megabits(bitsPerSecond: Long?): String =
         if (bitsPerSecond == null || bitsPerSecond <= 0) {
@@ -18,31 +16,41 @@ object StatsFormat {
             String.format(Locale.US, "%.1f Mbps", bitsPerSecond / 1_000_000.0)
         }
 
-    fun resolution(width: Int?, height: Int?, frameRate: Float?): String {
+    fun resolution(
+        width: Int?,
+        height: Int?,
+        frameRate: Float?,
+    ): String {
         if (width == null || height == null) return UNKNOWN
         val fps = frameRate?.let { " ${Math.round(it)}fps" }.orEmpty()
-        return "${width}×$height$fps"
+        return "$width×$height$fps"
     }
 
     /** A proxy host, or "none" when the stream is not going through one. */
     fun proxy(host: String): String = host.ifBlank { NONE }
 
     /** Pill shown on the video: live delay and the proxy, or none. */
-    fun pill(stats: PlayerStats, proxyHost: String): String =
-        "${seconds(stats.liveLatencyMs)} · ${proxy(proxyHost)}"
+    fun pill(
+        stats: PlayerStats,
+        proxyHost: String,
+    ): String = "${seconds(stats.liveLatencyMs)} · ${proxy(proxyHost)}"
 
     /** Label and value pairs for the stats panel, in display order. */
-    fun lines(stats: PlayerStats, proxyHost: String): List<Pair<String, String>> = listOf(
-        "latency" to seconds(stats.liveLatencyMs),
-        "proxy" to proxy(proxyHost),
-        "buffer" to seconds(stats.bufferedMs),
-        "video" to resolution(stats.width, stats.height, stats.frameRate),
-        "bitrate" to megabits(stats.bitrate?.toLong()),
-        "network" to megabits(stats.bandwidthBps),
-        "codec" to (stats.codecs?.takeIf { it.isNotBlank() } ?: UNKNOWN),
-        "dropped" to stats.droppedFrames.toString(),
-        "speed" to String.format(Locale.US, "%.2fx", stats.playbackSpeed),
-    )
+    fun lines(
+        stats: PlayerStats,
+        proxyHost: String,
+    ): List<Pair<String, String>> =
+        listOf(
+            "latency" to seconds(stats.liveLatencyMs),
+            "proxy" to proxy(proxyHost),
+            "buffer" to seconds(stats.bufferedMs),
+            "video" to resolution(stats.width, stats.height, stats.frameRate),
+            "bitrate" to megabits(stats.bitrate?.toLong()),
+            "network" to megabits(stats.bandwidthBps),
+            "codec" to (stats.codecs?.takeIf { it.isNotBlank() } ?: UNKNOWN),
+            "dropped" to stats.droppedFrames.toString(),
+            "speed" to String.format(Locale.US, "%.2fx", stats.playbackSpeed),
+        )
 
     private const val NONE = "none"
 }

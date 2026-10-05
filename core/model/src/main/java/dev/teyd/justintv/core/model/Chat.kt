@@ -2,7 +2,9 @@ package dev.teyd.justintv.core.model
 
 /** A piece of a chat message: plain text or an emote image. */
 sealed interface ChatSegment {
-    data class Text(val text: String) : ChatSegment
+    data class Text(
+        val text: String,
+    ) : ChatSegment
 
     /**
      * An emote.

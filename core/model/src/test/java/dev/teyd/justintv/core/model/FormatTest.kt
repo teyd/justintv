@@ -1,11 +1,10 @@
 package dev.teyd.justintv.core.model
 
 import com.google.common.truth.Truth.assertThat
-import java.time.Instant
 import org.junit.Test
+import java.time.Instant
 
 class FormatTest {
-
     @Test
     fun `small counts are shown as is`() {
         assertThat(formatViewers(0)).isEqualTo("0")

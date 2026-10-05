@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -20,19 +21,18 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import dev.teyd.justintv.core.model.LiveStream
+import dev.teyd.justintv.core.player.VideoPlayer
 import dev.teyd.justintv.feature.settings.SettingsScreen
 import dev.teyd.justintv.feature.streams.GAME_ARG_NAME
 import dev.teyd.justintv.feature.streams.GameScreen
 import dev.teyd.justintv.feature.streams.HomeScreen
-import dev.teyd.justintv.core.player.VideoPlayer
-import androidx.compose.ui.unit.dp
-import dev.teyd.justintv.core.model.LiveStream
-import dev.teyd.justintv.feature.watch.activityChat
 import dev.teyd.justintv.feature.watch.PlaybackDockHeight
 import dev.teyd.justintv.feature.watch.PlaybackOverlay
 import dev.teyd.justintv.feature.watch.PlayerChrome
 import dev.teyd.justintv.feature.watch.WATCH_ARG_LOGIN
 import dev.teyd.justintv.feature.watch.WatchScreen
+import dev.teyd.justintv.feature.watch.activityChat
 import dev.teyd.justintv.feature.watch.activityPlayback
 
 private const val ROUTE_HOME = "home"

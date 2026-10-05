@@ -24,11 +24,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
@@ -66,14 +67,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.ui.graphics.vector.ImageVector
 import dev.teyd.justintv.core.model.formatUptime
 import dev.teyd.justintv.core.model.formatViewers
 import dev.teyd.justintv.core.player.PlayerHolder
-import java.time.Instant
 import dev.teyd.justintv.core.player.PlayerStats
 import dev.teyd.justintv.core.player.VideoQuality
 import kotlinx.coroutines.delay
+import java.time.Instant
 
 private val Scrim = Color.Black.copy(alpha = 0.35f)
 private val PillBackground = Color.Black.copy(alpha = 0.6f)
@@ -176,17 +176,18 @@ fun PlayerPane(
     }
 
     Box(
-        modifier = modifier
-            .playerDrag(onDrag = { drag.value(it) }, onDragEnd = { dragEnd.value(it) })
-            .pointerInput(onDoubleTap) {
-                detectTapGestures(
-                    onDoubleTap = { onDoubleTap?.invoke() },
-                    onTap = {
-                        controlsVisible = !controlsVisible
-                        touches++
-                    },
-                )
-            },
+        modifier =
+            modifier
+                .playerDrag(onDrag = { drag.value(it) }, onDragEnd = { dragEnd.value(it) })
+                .pointerInput(onDoubleTap) {
+                    detectTapGestures(
+                        onDoubleTap = { onDoubleTap?.invoke() },
+                        onTap = {
+                            controlsVisible = !controlsVisible
+                            touches++
+                        },
+                    )
+                },
     ) {
         // Hidden until the viewer presses the stats glyph: the source and live delay are
         // geek details, not part of the default viewing surface.
@@ -195,9 +196,10 @@ fun PlayerPane(
                 text = StatsFormat.pill(stats, state.proxy),
                 verified = state.isVerified,
                 onClick = { showStats = false },
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 8.dp, bottom = 40.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 8.dp, bottom = 40.dp),
             )
         }
 
@@ -205,9 +207,10 @@ fun PlayerPane(
             visible = showStats,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 8.dp, top = 56.dp),
+            modifier =
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 8.dp, top = 56.dp),
         ) {
             StatsPanel(lines = StatsFormat.lines(stats, state.proxy))
         }
@@ -220,10 +223,11 @@ fun PlayerPane(
         ) {
             Box(modifier = Modifier.fillMaxSize().background(Scrim)) {
                 Row(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onBack) {
@@ -267,10 +271,11 @@ fun PlayerPane(
 
                 // Shown with the controls only: how many are watching, and how long it has been up.
                 Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .padding(8.dp),
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .padding(8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -289,9 +294,10 @@ fun PlayerPane(
                             holder.togglePlayPause()
                             touches++
                         },
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(64.dp),
+                        modifier =
+                            Modifier
+                                .align(Alignment.Center)
+                                .size(64.dp),
                     ) {
                         Icon(
                             imageVector = if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
@@ -306,9 +312,10 @@ fun PlayerPane(
 
         if (state.error != null) {
             Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(24.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -375,18 +382,20 @@ fun PlayerPane(
                 ListItem(
                     headlineContent = { Text("Off") },
                     trailingContent = { if (sleepEndsAt == null) Text("✓") },
-                    modifier = Modifier.clickable {
-                        onSleepTimer(null)
-                        showSleep = false
-                    },
+                    modifier =
+                        Modifier.clickable {
+                            onSleepTimer(null)
+                            showSleep = false
+                        },
                 )
                 SLEEP_TIMER_MINUTES.forEach { minutes ->
                     ListItem(
                         headlineContent = { Text(sleepOptionLabel(minutes)) },
-                        modifier = Modifier.clickable {
-                            onSleepTimer(minutes)
-                            showSleep = false
-                        },
+                        modifier =
+                            Modifier.clickable {
+                                onSleepTimer(minutes)
+                                showSleep = false
+                            },
                     )
                 }
             }
@@ -416,12 +425,17 @@ fun PlayerPane(
 }
 
 @Composable
-private fun InfoPill(icon: ImageVector, text: String, description: String) {
+private fun InfoPill(
+    icon: ImageVector,
+    text: String,
+    description: String,
+) {
     Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(PillBackground)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(PillBackground)
+                .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -438,19 +452,21 @@ private fun SourcePill(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(PillBackground)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+        modifier =
+            modifier
+                .clip(RoundedCornerShape(50))
+                .background(PillBackground)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(if (verified) Color(0xFF4CAF50) else Color(0xFFFFB300)),
+            modifier =
+                Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(if (verified) Color(0xFF4CAF50) else Color(0xFFFFB300)),
         )
         Text(
             text = text,
@@ -463,12 +479,16 @@ private fun SourcePill(
 }
 
 @Composable
-private fun StatsPanel(lines: List<Pair<String, String>>, modifier: Modifier = Modifier) {
+private fun StatsPanel(
+    lines: List<Pair<String, String>>,
+    modifier: Modifier = Modifier,
+) {
     Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(PillBackground)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+        modifier =
+            modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(PillBackground)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         lines.forEach { (label, value) ->
             Row {

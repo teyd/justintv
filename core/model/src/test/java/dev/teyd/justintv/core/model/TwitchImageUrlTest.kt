@@ -4,7 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class TwitchImageUrlTest {
-
     @Test
     fun `the preview height placeholder is filled in`() {
         assertThat(twitchImageUrl("https://static-cdn.jtvnw.net/previews-ttv/live_user_x-440x{height}.jpg"))

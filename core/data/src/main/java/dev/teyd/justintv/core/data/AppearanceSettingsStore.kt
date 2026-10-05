@@ -21,14 +21,16 @@ enum class ThemeMode {
  * System is the default, so a fresh install follows the device. Dynamic color is off: the
  * purple accent is the identity unless the viewer asks for the wallpaper palette.
  */
-class AppearanceSettingsStore(private val dataStore: DataStore<Preferences>) {
-
+class AppearanceSettingsStore(
+    private val dataStore: DataStore<Preferences>,
+) {
     private val modeKey = stringPreferencesKey("theme_mode")
     private val dynamicKey = booleanPreferencesKey("dynamic_color")
 
-    val themeMode: Flow<ThemeMode> = dataStore.data.map { preferences ->
-        themeModeOf(preferences[modeKey])
-    }
+    val themeMode: Flow<ThemeMode> =
+        dataStore.data.map { preferences ->
+            themeModeOf(preferences[modeKey])
+        }
 
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[dynamicKey] == true }
 
@@ -41,10 +43,11 @@ class AppearanceSettingsStore(private val dataStore: DataStore<Preferences>) {
     }
 
     companion object {
-        fun themeModeOf(stored: String?): ThemeMode = when (stored) {
-            ThemeMode.Light.name -> ThemeMode.Light
-            ThemeMode.Dark.name -> ThemeMode.Dark
-            else -> ThemeMode.System
-        }
+        fun themeModeOf(stored: String?): ThemeMode =
+            when (stored) {
+                ThemeMode.Light.name -> ThemeMode.Light
+                ThemeMode.Dark.name -> ThemeMode.Dark
+                else -> ThemeMode.System
+            }
     }
 }

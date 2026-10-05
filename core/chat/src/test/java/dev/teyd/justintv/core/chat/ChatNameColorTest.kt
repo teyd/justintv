@@ -4,7 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class ChatNameColorTest {
-
     @Test
     fun `a tagged colour is used as is`() {
         assertThat(ChatNameColor.resolve("#a1B2c3", "anyone")).isEqualTo("#A1B2C3")
@@ -28,9 +27,10 @@ class ChatNameColorTest {
 
     @Test
     fun `different nicks spread across the palette`() {
-        val colours = listOf("alice", "bob", "carol", "dave", "erin", "frank", "grace", "heidi")
-            .map { ChatNameColor.resolve(null, it) }
-            .toSet()
+        val colours =
+            listOf("alice", "bob", "carol", "dave", "erin", "frank", "grace", "heidi")
+                .map { ChatNameColor.resolve(null, it) }
+                .toSet()
 
         assertThat(colours.size).isAtLeast(4)
     }

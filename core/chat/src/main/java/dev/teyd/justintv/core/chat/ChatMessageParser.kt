@@ -4,7 +4,11 @@ import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.model.ChatSegment
 
 /** A Twitch native emote occurrence: its id and the code point range it covers (inclusive). */
-data class TwitchEmoteRange(val id: String, val start: Int, val end: Int)
+data class TwitchEmoteRange(
+    val id: String,
+    val start: Int,
+    val end: Int,
+)
 
 /**
  * Turns IRC messages into [ChatMessage]s with emotes resolved.
@@ -13,12 +17,14 @@ data class TwitchEmoteRange(val id: String, val start: Int, val end: Int)
  * (7TV, BTTV, FFZ) are matched by whole-word name in whatever text is left.
  */
 object ChatMessageParser {
-
     private const val ACTION_PREFIX = "\u0001ACTION "
     private const val ACTION_SUFFIX = "\u0001"
 
     /** Returns null for anything that is not a chat line. */
-    fun parse(irc: IrcMessage, index: EmoteIndex): ChatMessage? {
+    fun parse(
+        irc: IrcMessage,
+        index: EmoteIndex,
+    ): ChatMessage? {
         if (irc.command != "PRIVMSG") return null
         var text = irc.trailing ?: return null
 
@@ -33,7 +39,7 @@ object ChatMessageParser {
         val color = ChatNameColor.resolve(irc.tags["color"], user)
 
         return ChatMessage(
-            id = irc.tags["id"] ?: "${user}-${text.hashCode()}-${System.nanoTime()}",
+            id = irc.tags["id"] ?: "$user-${text.hashCode()}-${System.nanoTime()}",
             user = user,
             color = color,
             segments = tokenize(text, ranges, index),
@@ -67,8 +73,10 @@ object ChatMessageParser {
         val segments = ArrayList<ChatSegment>()
         var position = 0
 
-        fun slice(from: Int, toExclusive: Int): String =
-            String(codePoints, from, (toExclusive - from).coerceAtLeast(0))
+        fun slice(
+            from: Int,
+            toExclusive: Int,
+        ): String = String(codePoints, from, (toExclusive - from).coerceAtLeast(0))
 
         for (range in twitchEmotes) {
             // Ranges that overlap an earlier one or run past the text are ignored, not trusted.
@@ -78,10 +86,11 @@ object ChatMessageParser {
             if (range.start > position) {
                 appendThirdParty(segments, slice(position, range.start), index)
             }
-            segments += ChatSegment.Emote(
-                name = slice(range.start, end + 1),
-                url = twitchEmoteUrl(range.id),
-            )
+            segments +=
+                ChatSegment.Emote(
+                    name = slice(range.start, end + 1),
+                    url = twitchEmoteUrl(range.id),
+                )
             position = end + 1
         }
         if (position < codePoints.size) {
@@ -90,10 +99,13 @@ object ChatMessageParser {
         return mergeText(segments)
     }
 
-    fun twitchEmoteUrl(id: String): String =
-        "https://static-cdn.jtvnw.net/emoticons/v2/$id/default/dark/2.0"
+    fun twitchEmoteUrl(id: String): String = "https://static-cdn.jtvnw.net/emoticons/v2/$id/default/dark/2.0"
 
-    private fun appendThirdParty(out: MutableList<ChatSegment>, text: String, index: EmoteIndex) {
+    private fun appendThirdParty(
+        out: MutableList<ChatSegment>,
+        text: String,
+        index: EmoteIndex,
+    ) {
         if (text.isEmpty()) return
         if (index.size == 0) {
             out += ChatSegment.Text(text)

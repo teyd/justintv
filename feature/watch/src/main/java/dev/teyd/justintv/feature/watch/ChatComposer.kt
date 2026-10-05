@@ -35,19 +35,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
-import coil3.request.ImageRequest
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import dev.teyd.justintv.core.chat.Emote
 import dev.teyd.justintv.core.chat.EmoteSource
 
@@ -61,7 +61,11 @@ data class ComposerState(
 )
 
 /** Inserts an emote name at the cursor, with spaces so it stays a whole word. */
-fun insertEmote(text: String, cursor: Int, name: String): Pair<String, Int> {
+fun insertEmote(
+    text: String,
+    cursor: Int,
+    name: String,
+): Pair<String, Int> {
     val at = cursor.coerceIn(0, text.length)
     val before = text.substring(0, at)
     val after = text.substring(at)
@@ -71,7 +75,11 @@ fun insertEmote(text: String, cursor: Int, name: String): Pair<String, Int> {
     return before + inserted + after to (before.length + inserted.length)
 }
 
-fun filterEmotes(emotes: List<Emote>, source: EmoteSource?, query: String): List<Emote> {
+fun filterEmotes(
+    emotes: List<Emote>,
+    source: EmoteSource?,
+    query: String,
+): List<Emote> {
     val needle = query.trim()
     return emotes.filter { emote ->
         (source == null || emote.source == source) &&
@@ -117,9 +125,10 @@ fun ChatComposer(
             )
         }
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
             shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
@@ -133,18 +142,21 @@ fun ChatComposer(
                 BasicTextField(
                     value = field,
                     onValueChange = { field = it.copy(text = it.text.take(500)) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 12.dp)
-                        .focusRequester(focus),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
-                    ),
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .padding(vertical = 12.dp)
+                            .focusRequester(focus),
+                    textStyle =
+                        MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(
-                        onSend = { submit(field.text, state, onSend, onAllowChat) { field = TextFieldValue() } },
-                    ),
+                    keyboardActions =
+                        KeyboardActions(
+                            onSend = { submit(field.text, state, onSend, onAllowChat) { field = TextFieldValue() } },
+                        ),
                     maxLines = 4,
                     decorationBox = { inner ->
                         if (field.text.isEmpty()) {

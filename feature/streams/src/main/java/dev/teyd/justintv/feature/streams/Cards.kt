@@ -37,33 +37,37 @@ fun StreamCard(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
     ) {
         Box {
             AsyncImage(
                 model = stream.previewUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             Text(
-                text = buildString {
-                    append("${formatViewers(stream.viewerCount)} watching")
-                    formatUptime(stream.startedAt)?.let { append(" · ").append(it) }
-                },
+                text =
+                    buildString {
+                        append("${formatViewers(stream.viewerCount)} watching")
+                        formatUptime(stream.startedAt)?.let { append(" · ").append(it) }
+                    },
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
         Row(
@@ -74,10 +78,11 @@ fun StreamCard(
                 model = stream.avatarUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                modifier =
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -117,19 +122,21 @@ fun GameCard(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .clickable(onClick = onClick)
-            .padding(4.dp),
+        modifier =
+            modifier
+                .clickable(onClick = onClick)
+                .padding(4.dp),
     ) {
         AsyncImage(
             model = game.boxArtUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(3f / 4f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(3f / 4f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
         )
         Text(
             text = game.displayName,

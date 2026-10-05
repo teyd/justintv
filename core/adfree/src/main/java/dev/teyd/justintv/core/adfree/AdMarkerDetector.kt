@@ -10,14 +10,15 @@ import dev.teyd.justintv.core.adfree.AdMarkerRules.isAdSegmentTitle
  * player does the same check against its parsed manifest via [AdMarkerRules].
  */
 object AdMarkerDetector {
-
     fun hasAdMarkers(playlistText: String): Boolean {
         var lastSegmentWasAd = false
 
         for (rawLine in playlistText.lineSequence()) {
             val line = rawLine.trim()
             when {
-                line.isEmpty() -> Unit
+                line.isEmpty() -> {
+                    Unit
+                }
 
                 line.startsWith("#EXT-X-DATERANGE:") -> {
                     if (isAdDateRangeLine(line)) return true
@@ -28,10 +29,14 @@ object AdMarkerDetector {
                     lastSegmentWasAd = isAdSegmentTitle(segmentTitle(line))
                 }
 
-                line.startsWith("#") -> lastSegmentWasAd = false
+                line.startsWith("#") -> {
+                    lastSegmentWasAd = false
+                }
 
                 // Anything else is a URI. An ad-titled EXTINF points at an ad segment.
-                else -> if (lastSegmentWasAd) return true
+                else -> {
+                    if (lastSegmentWasAd) return true
+                }
             }
         }
         return false
@@ -78,6 +83,5 @@ object AdMarkerDetector {
     }
 
     /** Extracts the title part of an `#EXTINF:<duration>,<title>` line. */
-    fun segmentTitle(extinfLine: String): String =
-        extinfLine.substringAfter(',', missingDelimiterValue = "").trim()
+    fun segmentTitle(extinfLine: String): String = extinfLine.substringAfter(',', missingDelimiterValue = "").trim()
 }

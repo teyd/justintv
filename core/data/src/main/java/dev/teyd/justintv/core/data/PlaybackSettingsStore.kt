@@ -13,8 +13,9 @@ import kotlinx.coroutines.flow.map
  * Off by default. The mini player is in-app only; this is the separate "keep playing in the
  * background" switch.
  */
-class PlaybackSettingsStore(private val dataStore: DataStore<Preferences>) {
-
+class PlaybackSettingsStore(
+    private val dataStore: DataStore<Preferences>,
+) {
     private val backgroundKey = booleanPreferencesKey("background_playback")
     private val pipKey = booleanPreferencesKey("picture_in_picture")
 

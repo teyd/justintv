@@ -4,7 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class QualityLabelTest {
-
     @Test
     fun `60fps renditions get a 60 suffix`() {
         assertThat(QualityLabel.of(1080, 60f)).isEqualTo("1080p60")
