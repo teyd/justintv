@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.teyd.justintv.core.model.Game
 import dev.teyd.justintv.core.model.LiveStream
+import dev.teyd.justintv.core.model.formatUptime
+import dev.teyd.justintv.core.model.formatViewers
 
 /** One live channel: preview, viewer count, avatar, title, name and category. */
 @Composable
@@ -50,7 +52,10 @@ fun StreamCard(
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             Text(
-                text = "${formatViewers(stream.viewerCount)} watching",
+                text = buildString {
+                    append("${formatViewers(stream.viewerCount)} watching")
+                    formatUptime(stream.startedAt)?.let { append(" · ").append(it) }
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White,
                 modifier = Modifier
