@@ -3,14 +3,16 @@ package dev.teyd.justintv.core.adfree
 import dev.teyd.justintv.core.network.PlaybackException
 import dev.teyd.justintv.core.network.PlaybackTokenSource
 import dev.teyd.justintv.core.network.PlayerTypes
-import dev.teyd.justintv.core.network.UsherUrlBuilder
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Picks a playable, ad-free stream URL.
  *
- * Candidates are tried in order and each one is verified before it is returned:
- *
- * 1. m3u8 proxies, in the order they are configured
+ * 1. m3u8 proxies are probed **in parallel**. The first one to return a clean playlist wins
+ *    and the rest are cancelled, so a dead or hanging proxy never delays a healthy one.
  * 2. direct usher URLs built from a different `playerType`
  * 3. the plain direct stream, as a last resort
  *
@@ -23,6 +25,12 @@ class PlaylistResolver(
     private val verifier: PlaylistVerifier,
     private val maxProxiesPerAttempt: Int = DEFAULT_MAX_PROXIES,
 ) {
+    private sealed interface ProbeResult {
+        data class Clean(val proxy: ProxyEndpoint) : ProbeResult
+        data class Ads(val proxy: ProxyEndpoint) : ProbeResult
+        data class Failed(val proxy: ProxyEndpoint, val error: PlaybackException?) : ProbeResult
+    }
+
     /**
      * Resolves [login] to a stream.
      *
@@ -38,25 +46,18 @@ class PlaylistResolver(
     ): ResolvedPlayback {
         val candidates = proxies
             .filterNot { it.host in excluding }
-            .let { if (maxAttempts > 0) it.take(maxAttempts) else it.take(maxProxiesPerAttempt) }
+            .take(if (maxAttempts > 0) maxAttempts else maxProxiesPerAttempt)
 
         var lastFailure: PlaybackException? = null
 
-        for (proxy in candidates) {
-            onStatus("Trying ${proxy.host}…")
-            val url = proxy.liveUrl(login)
-            try {
-                if (verifier.isAdFree(url)) {
-                    onStatus("Playing via ${proxy.host}")
-                    return ResolvedPlayback(url, PlaybackMethod.Proxied(proxy.host), verified = true)
-                }
-                onStatus("${proxy.host} still serves ads, trying the next option…")
-            } catch (e: PlaybackException) {
-                lastFailure = e
-                onStatus("${proxy.host} is unavailable, trying the next option…")
-            } catch (e: Exception) {
-                onStatus("${proxy.host} failed, trying the next option…")
+        if (candidates.isNotEmpty()) {
+            onStatus("Checking ${candidates.size} ad-free sources…")
+            val outcome = raceProxies(login, candidates, onStatus)
+            outcome.winner?.let { proxy ->
+                onStatus("Playing via ${proxy.host}")
+                return ResolvedPlayback(proxy.liveUrl(login), PlaybackMethod.Proxied(proxy.host), verified = true)
             }
+            lastFailure = outcome.lastFailure
         }
 
         for (playerType in PlayerTypes.SWAP_ORDER) {
@@ -74,6 +75,8 @@ class PlaylistResolver(
                 }
             } catch (e: PlaybackException) {
                 lastFailure = e
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 // Fall through to the next player type.
             }
@@ -88,7 +91,51 @@ class PlaylistResolver(
         return ResolvedPlayback(directUrl, PlaybackMethod.Direct, verified = false)
     }
 
+    private class RaceOutcome(val winner: ProxyEndpoint?, val lastFailure: PlaybackException?)
+
+    /** Probes every candidate at once and returns as soon as one is clean. */
+    private suspend fun raceProxies(
+        login: String,
+        candidates: List<ProxyEndpoint>,
+        onStatus: (String) -> Unit,
+    ): RaceOutcome = coroutineScope {
+        val results = Channel<ProbeResult>(Channel.UNLIMITED)
+        val jobs = candidates.map { proxy ->
+            launch { results.send(probe(proxy, login)) }
+        }
+
+        var winner: ProxyEndpoint? = null
+        var lastFailure: PlaybackException? = null
+        for (ignored in candidates.indices) {
+            when (val result = results.receive()) {
+                is ProbeResult.Clean -> {
+                    winner = result.proxy
+                    break
+                }
+
+                is ProbeResult.Ads -> onStatus("${result.proxy.host} still serves ads")
+                is ProbeResult.Failed -> {
+                    lastFailure = result.error ?: lastFailure
+                    onStatus("${result.proxy.host} is unavailable")
+                }
+            }
+        }
+        jobs.forEach { it.cancel() }
+        results.close()
+        RaceOutcome(winner, lastFailure)
+    }
+
+    private suspend fun probe(proxy: ProxyEndpoint, login: String): ProbeResult = try {
+        if (verifier.isAdFree(proxy.liveUrl(login))) ProbeResult.Clean(proxy) else ProbeResult.Ads(proxy)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: PlaybackException) {
+        ProbeResult.Failed(proxy, e)
+    } catch (_: Exception) {
+        ProbeResult.Failed(proxy, null)
+    }
+
     companion object {
-        const val DEFAULT_MAX_PROXIES = 4
+        const val DEFAULT_MAX_PROXIES = 6
     }
 }

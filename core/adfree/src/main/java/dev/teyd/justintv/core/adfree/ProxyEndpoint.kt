@@ -20,21 +20,28 @@ data class ProxyEndpoint(
 }
 
 /**
- * Shipped defaults, ordered by a mix of past reliability and region.
+ * Shipped defaults.
  *
- * These are PerfProd's public m3u8 proxies. They
- * are best-effort: when one is down the resolver moves on to the next, and eventually falls
- * back to an unproxied stream. Users can replace the list in settings (M6).
+ * Probing is parallel and the fastest clean answer wins, so the order here is only a
+ * tie-break and the list can safely contain hosts that are sometimes down.
+ *
+ * - PerfProd's public m3u8 proxies.
+ * - Luminous public instances (open-source `luminous-ttv`).
+ *
+ * Users can replace the list in settings (M6).
  */
 object DefaultProxies {
     val ALL: List<ProxyEndpoint> = listOf(
-        ProxyEndpoint("lb-eu.cdn-perfprod.com", "Europe"),
-        ProxyEndpoint("lb-eu5.cdn-perfprod.com", "Europe 5"),
-        ProxyEndpoint("lb-eu2.cdn-perfprod.com", "Europe 2"),
-        ProxyEndpoint("lb-eu4.cdn-perfprod.com", "Europe 4"),
-        ProxyEndpoint("lb-eu3.cdn-perfprod.com", "Europe 3"),
-        ProxyEndpoint("lb-na.cdn-perfprod.com", "North America"),
-        ProxyEndpoint("lb-sa.cdn-perfprod.com", "South America"),
-        ProxyEndpoint("lb-as.cdn-perfprod.com", "Asia"),
+        ProxyEndpoint("eu.luminous.dev", "Luminous · Europe"),
+        ProxyEndpoint("eu2.luminous.dev", "Luminous · Europe 2"),
+        ProxyEndpoint("lb-eu5.cdn-perfprod.com", "PerfProd · Europe 5"),
+        ProxyEndpoint("lb-eu.cdn-perfprod.com", "PerfProd · Europe"),
+        ProxyEndpoint("lb-as.cdn-perfprod.com", "PerfProd · Asia"),
+        ProxyEndpoint("as.luminous.dev", "Luminous · Asia"),
+        ProxyEndpoint("lb-eu2.cdn-perfprod.com", "PerfProd · Europe 2"),
+        ProxyEndpoint("lb-eu4.cdn-perfprod.com", "PerfProd · Europe 4"),
+        ProxyEndpoint("lb-eu3.cdn-perfprod.com", "PerfProd · Europe 3"),
+        ProxyEndpoint("lb-na.cdn-perfprod.com", "PerfProd · North America"),
+        ProxyEndpoint("lb-sa.cdn-perfprod.com", "PerfProd · South America"),
     )
 }
