@@ -117,6 +117,42 @@ class PlaylistResolverRaceTest {
     }
 
     @Test
+    fun `hanging proxies do not hold up the fallback for their whole timeout`() = runTest {
+        val proxies = listOf(ProxyEndpoint("a.example"), ProxyEndpoint("b.example"))
+        val fetcher = DelayedFetcher(
+            delays = mapOf("a.example" to 60_000L, "b.example" to 60_000L, "usher.ttvnw.net" to 300L),
+            body = cleanMedia,
+        )
+        val resolver = PlaylistResolver(tokenSource, proxies, PlaylistVerifier(fetcher))
+
+        val result = resolver.resolve("dona")
+
+        assertThat(result.method).isInstanceOf(PlaybackMethod.PlayerTypeSwap::class.java)
+        // The race is capped at four seconds and the fallback was already prepared.
+        assertThat(currentTime).isLessThan(5_000L)
+    }
+
+    @Test
+    fun `fallbacks are not started when a proxy wins quickly`() = runTest {
+        val seen = mutableListOf<String>()
+        val trackingTokens = object : PlaybackTokenSource {
+            override suspend fun playbackAccessToken(login: String, playerType: String) =
+                PlaybackAccessToken("v", "s")
+
+            override suspend fun directStreamUrl(login: String, playerType: String): String {
+                seen += playerType
+                return "https://usher.ttvnw.net/api/v2/channel/hls/$login.m3u8?playerType=$playerType"
+            }
+        }
+        val fetcher = DelayedFetcher(delays = mapOf("fast.example" to 100L), body = cleanMedia)
+        val resolver = PlaylistResolver(trackingTokens, listOf(ProxyEndpoint("fast.example")), PlaylistVerifier(fetcher))
+
+        resolver.resolve("dona")
+
+        assertThat(seen).isEmpty()
+    }
+
+    @Test
     fun `candidate count is limited`() = runTest {
         val proxies = (1..10).map { ProxyEndpoint("p$it.example") }
         val requested = mutableSetOf<String>()

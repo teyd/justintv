@@ -4,9 +4,13 @@ import dev.teyd.justintv.core.network.PlaybackException
 import dev.teyd.justintv.core.network.PlaybackTokenSource
 import dev.teyd.justintv.core.network.PlayerTypes
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Picks a playable, ad-free stream URL.
@@ -16,6 +20,11 @@ import kotlinx.coroutines.launch
  * 2. direct usher URLs built from a different `playerType`
  * 3. the plain direct stream, as a last resort
  *
+ * Steps 2 and 3 are prepared while step 1 runs, once it has taken longer than
+ * [hedgeDelayMs] or has finished without a winner. Each of them costs a token request and
+ * one or two playlist fetches, so running them one after another behind a failed proxy race
+ * was where most of the wait went. When a proxy wins quickly they never start.
+ *
  * The resolver never throws for an individual candidate failure; it moves on. It only fails
  * when there is no stream at all (offline channel, or the network is down).
  */
@@ -24,12 +33,18 @@ class PlaylistResolver(
     private val proxies: List<ProxyEndpoint> = DefaultProxies.ALL,
     private val verifier: PlaylistVerifier,
     private val maxProxiesPerAttempt: Int = DEFAULT_MAX_PROXIES,
+    private val hedgeDelayMs: Long = DEFAULT_HEDGE_DELAY_MS,
+    private val raceDeadlineMs: Long = DEFAULT_RACE_DEADLINE_MS,
 ) {
     private sealed interface ProbeResult {
         data class Clean(val proxy: ProxyEndpoint) : ProbeResult
         data class Ads(val proxy: ProxyEndpoint) : ProbeResult
         data class Failed(val proxy: ProxyEndpoint, val error: PlaybackException?) : ProbeResult
     }
+
+    private class SwapResult(val url: String?, val adFree: Boolean, val failure: PlaybackException?)
+
+    private class DirectResult(val url: String?, val failure: Throwable?)
 
     /**
      * Resolves [login] to a stream.
@@ -48,58 +63,108 @@ class PlaylistResolver(
         disabledProxies: Set<String> = emptySet(),
         maxAttempts: Int = -1,
         onStatus: (String) -> Unit = {},
-    ): ResolvedPlayback {
+    ): ResolvedPlayback = coroutineScope {
         if (!adBlockEnabled) {
-            onStatus("Ad blocking is off, playing directly")
+            onStatus("Starting the stream")
             val directUrl = api.directStreamUrl(login, PlayerTypes.SITE)
-            return ResolvedPlayback(directUrl, PlaybackMethod.Direct, verified = false)
+            return@coroutineScope ResolvedPlayback(directUrl, PlaybackMethod.Direct, verified = false)
         }
 
         val candidates = proxies
             .filterNot { it.host in excluding || it.host in disabledProxies }
             .take(if (maxAttempts > 0) maxAttempts else maxProxiesPerAttempt)
 
+        val raceFinished = CompletableDeferred<Unit>()
+        suspend fun awaitHedge() {
+            withTimeoutOrNull(hedgeDelayMs) { raceFinished.await() }
+        }
+
+        val swaps: List<Deferred<SwapResult>> = PlayerTypes.SWAP_ORDER.map { playerType ->
+            async {
+                awaitHedge()
+                probeSwap(login, playerType)
+            }
+        }
+        val direct: Deferred<DirectResult> = async {
+            awaitHedge()
+            try {
+                DirectResult(api.directStreamUrl(login, PlayerTypes.SITE), null)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DirectResult(null, e)
+            }
+        }
+
         var lastFailure: PlaybackException? = null
 
         if (candidates.isNotEmpty()) {
-            onStatus("Checking ${candidates.size} ad-free sources…")
-            val outcome = raceProxies(login, candidates, onStatus)
+            onStatus("Finding the fastest source")
+            // A proxy that has not answered by the deadline is not worth waiting for while a
+            // prepared fallback is sitting there.
+            val outcome = withTimeoutOrNull(raceDeadlineMs) { raceProxies(login, candidates) }
+                ?: RaceOutcome(winner = null, lastFailure = null)
+            raceFinished.complete(Unit)
             outcome.winner?.let { proxy ->
+                swaps.forEach { it.cancel() }
+                direct.cancel()
                 onStatus("Playing via ${proxy.host}")
-                return ResolvedPlayback(proxy.liveUrl(login), PlaybackMethod.Proxied(proxy.host), verified = true)
+                return@coroutineScope ResolvedPlayback(
+                    proxy.liveUrl(login),
+                    PlaybackMethod.Proxied(proxy.host),
+                    verified = true,
+                )
             }
             lastFailure = outcome.lastFailure
+        } else {
+            raceFinished.complete(Unit)
         }
 
-        for (playerType in PlayerTypes.SWAP_ORDER) {
-            onStatus("Trying the $playerType player…")
-            val url = try {
-                api.directStreamUrl(login, playerType)
-            } catch (e: PlaybackException) {
-                lastFailure = e
-                continue
+        onStatus("Trying another way in")
+        for ((index, playerType) in PlayerTypes.SWAP_ORDER.withIndex()) {
+            val swap = swaps[index].await()
+            if (swap.adFree && swap.url != null) {
+                swaps.forEach { it.cancel() }
+                direct.cancel()
+                onStatus("Playing with the $playerType player")
+                return@coroutineScope ResolvedPlayback(
+                    swap.url,
+                    PlaybackMethod.PlayerTypeSwap(playerType),
+                    verified = true,
+                )
             }
-            try {
-                if (verifier.isAdFree(url)) {
-                    onStatus("Playing with the $playerType player")
-                    return ResolvedPlayback(url, PlaybackMethod.PlayerTypeSwap(playerType), verified = true)
-                }
-            } catch (e: PlaybackException) {
-                lastFailure = e
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // Fall through to the next player type.
-            }
+            swap.failure?.let { lastFailure = it }
         }
 
         onStatus("No ad-free stream found, playing directly")
-        val directUrl = try {
-            api.directStreamUrl(login, PlayerTypes.SITE)
-        } catch (e: PlaybackException) {
-            throw lastFailure ?: e
+        val result = direct.await()
+        val url = result.url
+        if (url == null) {
+            val failure = result.failure
+            throw if (failure is PlaybackException) lastFailure ?: failure else failure ?: IllegalStateException()
         }
-        return ResolvedPlayback(directUrl, PlaybackMethod.Direct, verified = false)
+        ResolvedPlayback(url, PlaybackMethod.Direct, verified = false)
+    }
+
+    private suspend fun probeSwap(login: String, playerType: String): SwapResult {
+        val url = try {
+            api.directStreamUrl(login, playerType)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: PlaybackException) {
+            return SwapResult(null, adFree = false, failure = e)
+        } catch (_: Exception) {
+            return SwapResult(null, adFree = false, failure = null)
+        }
+        return try {
+            SwapResult(url, adFree = verifier.isAdFree(url), failure = null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: PlaybackException) {
+            SwapResult(url, adFree = false, failure = e)
+        } catch (_: Exception) {
+            SwapResult(url, adFree = false, failure = null)
+        }
     }
 
     private class RaceOutcome(val winner: ProxyEndpoint?, val lastFailure: PlaybackException?)
@@ -108,7 +173,6 @@ class PlaylistResolver(
     private suspend fun raceProxies(
         login: String,
         candidates: List<ProxyEndpoint>,
-        onStatus: (String) -> Unit,
     ): RaceOutcome = coroutineScope {
         val results = Channel<ProbeResult>(Channel.UNLIMITED)
         val jobs = candidates.map { proxy ->
@@ -124,11 +188,8 @@ class PlaylistResolver(
                     break
                 }
 
-                is ProbeResult.Ads -> onStatus("${result.proxy.host} still serves ads")
-                is ProbeResult.Failed -> {
-                    lastFailure = result.error ?: lastFailure
-                    onStatus("${result.proxy.host} is unavailable")
-                }
+                is ProbeResult.Ads -> Unit
+                is ProbeResult.Failed -> lastFailure = result.error ?: lastFailure
             }
         }
         jobs.forEach { it.cancel() }
@@ -148,5 +209,11 @@ class PlaylistResolver(
 
     companion object {
         const val DEFAULT_MAX_PROXIES = 6
+
+        /** Healthy proxies answer well inside this. Past it, the fallbacks start preparing. */
+        const val DEFAULT_HEDGE_DELAY_MS = 1_200L
+
+        /** The longest the proxy race may hold up the fallbacks. */
+        const val DEFAULT_RACE_DEADLINE_MS = 4_000L
     }
 }
