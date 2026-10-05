@@ -36,16 +36,27 @@ class PlaylistResolver(
      *
      * @param excluding proxy hosts that should not be tried again. The UI adds a proxy here
      * after an ad break is detected on it, so the retry lands somewhere else.
+     * @param adBlockEnabled when false, skips proxy probing and player-type swaps entirely and
+     * plays the plain direct stream.
+     * @param disabledProxies proxy hosts the viewer switched off in settings.
      * @param onStatus progress messages for the UI, in user-facing language.
      */
     suspend fun resolve(
         login: String,
         excluding: Set<String> = emptySet(),
+        adBlockEnabled: Boolean = true,
+        disabledProxies: Set<String> = emptySet(),
         maxAttempts: Int = -1,
         onStatus: (String) -> Unit = {},
     ): ResolvedPlayback {
+        if (!adBlockEnabled) {
+            onStatus("Ad blocking is off, playing directly")
+            val directUrl = api.directStreamUrl(login, PlayerTypes.SITE)
+            return ResolvedPlayback(directUrl, PlaybackMethod.Direct, verified = false)
+        }
+
         val candidates = proxies
-            .filterNot { it.host in excluding }
+            .filterNot { it.host in excluding || it.host in disabledProxies }
             .take(if (maxAttempts > 0) maxAttempts else maxProxiesPerAttempt)
 
         var lastFailure: PlaybackException? = null

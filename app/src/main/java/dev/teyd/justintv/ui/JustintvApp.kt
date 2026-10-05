@@ -52,9 +52,9 @@ fun JustintvApp() {
         ) {
             composable(ROUTE_HOME) {
                 HomeScreen(
-                    onWatch = { login -> navController.navigate("$ROUTE_WATCH/${Uri.encode(login)}") },
-                    onOpenGame = { name -> navController.navigate("$ROUTE_GAME/${Uri.encode(name)}") },
-                    onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
+                    onWatch = { login -> navController.navigate("$ROUTE_WATCH/${Uri.encode(login)}") { launchSingleTop = true } },
+                    onOpenGame = { name -> navController.navigate("$ROUTE_GAME/${Uri.encode(name)}") { launchSingleTop = true } },
+                    onOpenSettings = { navController.navigate(ROUTE_SETTINGS) { launchSingleTop = true } },
                 )
             }
             composable(
@@ -63,7 +63,7 @@ fun JustintvApp() {
             ) {
                 GameScreen(
                     onBack = { navController.popBackStack() },
-                    onWatch = { login -> navController.navigate("$ROUTE_WATCH/${Uri.encode(login)}") },
+                    onWatch = { login -> navController.navigate("$ROUTE_WATCH/${Uri.encode(login)}") { launchSingleTop = true } },
                 )
             }
             composable(
@@ -84,15 +84,14 @@ fun JustintvApp() {
             }
         }
 
-        if (chrome == PlayerChrome.Mini && playing.channelLogin.isNotBlank()) {
-            MiniPlayer(
-                modifier = Modifier.zIndex(1f),
-                viewModel = playback,
-                onExpand = {
-                    playback.expand()
-                    navController.navigate("$ROUTE_WATCH/${Uri.encode(playing.channelLogin)}")
-                },
-            )
-        }
+        MiniPlayer(
+            viewModel = playback,
+            visible = chrome == PlayerChrome.Mini && playing.channelLogin.isNotBlank(),
+            onExpand = {
+                playback.expand()
+                navController.navigate("$ROUTE_WATCH/${Uri.encode(playing.channelLogin)}") { launchSingleTop = true }
+            },
+            modifier = Modifier.zIndex(1f),
+        )
     }
 }

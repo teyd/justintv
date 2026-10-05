@@ -1,6 +1,7 @@
 package dev.teyd.justintv
 
 import android.content.BroadcastReceiver
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -31,6 +32,13 @@ class MainActivity : ComponentActivity() {
         )
         Pip.register(this, receiver)
         pipReceiver = receiver
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // uiMode is handled in place (the activity is not recreated), so the edge-to-edge
+        // styles that give the system bar icons their contrast must be re-applied.
+        enableEdgeToEdge()
     }
 
     override fun onUserLeaveHint() {

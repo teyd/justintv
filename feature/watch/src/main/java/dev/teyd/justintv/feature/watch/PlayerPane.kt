@@ -71,7 +71,6 @@ private val Scrim = Color.Black.copy(alpha = 0.35f)
 private val PillBackground = Color.Black.copy(alpha = 0.6f)
 private const val CONTROLS_HIDE_DELAY_MS = 3_000L
 private const val STATS_REFRESH_MS = 500L
-private const val PILL_REFRESH_MS = 1_000L
 
 /**
  * The video, with a deliberately small set of controls drawn on top.
@@ -113,10 +112,13 @@ fun PlayerPane(
     var stats by remember { mutableStateOf(PlayerStats()) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(holder, showStats) {
+        // The pill and the panel only exist while the viewer asked for stats, so the reads only
+        // run then; pressing the geek glyph shows a snapshot immediately.
+        if (!showStats) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
                 stats = holder.readStats()
-                delay(if (showStats) STATS_REFRESH_MS else PILL_REFRESH_MS)
+                delay(STATS_REFRESH_MS)
             }
         }
     }
@@ -146,14 +148,18 @@ fun PlayerPane(
     ) {
         VideoPlayer(player = holder, modifier = Modifier.fillMaxSize())
 
-        SourcePill(
-            text = StatsFormat.pill(stats, state.source),
-            verified = state.isVerified,
-            onClick = { showStats = !showStats },
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(8.dp),
-        )
+        // Hidden until the viewer presses the stats glyph: the source and live delay are
+        // geek details, not part of the default viewing surface.
+        if (showStats) {
+            SourcePill(
+                text = StatsFormat.pill(stats, state.source),
+                verified = state.isVerified,
+                onClick = { showStats = false },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp),
+            )
+        }
 
         AnimatedVisibility(
             visible = showStats,

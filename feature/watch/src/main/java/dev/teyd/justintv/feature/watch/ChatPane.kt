@@ -20,6 +20,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,7 @@ import coil3.compose.AsyncImage
 import dev.teyd.justintv.core.chat.ChatStatus
 import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.model.ChatSegment
+import kotlinx.coroutines.launch
 
 private const val TEXT_SIZE_SP = 14
 private const val EMOTE_HEIGHT_SP = 24
@@ -67,6 +69,7 @@ fun ChatList(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     // Follow the newest message until the viewer scrolls up to read, then stop yanking them down.
     var following by remember { mutableStateOf(true) }
     val atBottom by remember {
@@ -80,7 +83,9 @@ fun ChatList(
     LaunchedEffect(atBottom, listState.isScrollInProgress) {
         if (atBottom) following = true else if (listState.isScrollInProgress) following = false
     }
-    LaunchedEffect(messages.size) {
+    // Keyed on the newest message, not the list size: the view model caps the list, so the
+    // size stops changing while messages keep arriving.
+    LaunchedEffect(messages.lastOrNull()?.id) {
         if (following && messages.isNotEmpty()) listState.scrollToItem(messages.lastIndex)
     }
 
@@ -110,7 +115,10 @@ fun ChatList(
 
         if (!following && messages.isNotEmpty()) {
             AssistChip(
-                onClick = { following = true },
+                onClick = {
+                    following = true
+                    scope.launch { listState.scrollToItem(messages.lastIndex) }
+                },
                 label = { Text("Newer messages") },
                 leadingIcon = { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null) },
                 modifier = Modifier

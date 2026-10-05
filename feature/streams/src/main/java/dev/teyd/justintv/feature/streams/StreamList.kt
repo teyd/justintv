@@ -3,6 +3,8 @@ package dev.teyd.justintv.feature.streams
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -34,6 +36,7 @@ fun StreamList(
     onRefresh: () -> Unit,
     onWatch: (String) -> Unit,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
 ) {
     PullToRefreshBox(
         isRefreshing = state.isLoading && state.items.isNotEmpty(),
@@ -51,7 +54,10 @@ fun StreamList(
 
             else -> LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 320.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .consumeWindowInsets(contentPadding),
+                contentPadding = contentPadding,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {

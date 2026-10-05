@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.teyd.justintv.core.adfree.PlaybackMethod
 import dev.teyd.justintv.core.adfree.PlaylistResolver
 import dev.teyd.justintv.core.adfree.ResolvedPlayback
+import dev.teyd.justintv.core.data.AdBlockSettingsStore
 import dev.teyd.justintv.core.network.PlaybackException
 import dev.teyd.justintv.core.player.ManifestAdDetector
 import dev.teyd.justintv.core.player.PlaybackState
@@ -19,9 +20,11 @@ import dev.teyd.justintv.core.player.PlayerHolder
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,12 +37,29 @@ enum class PlayerChrome { Hidden, Expanded, Mini }
 /** Which bottom corner a released mini player snaps to. */
 enum class MiniSide { Left, Right }
 
+/** Release speed (px/s) above which a fling decides the side, regardless of position. */
+internal const val MINI_FLING_VELOCITY = 1_000f
+
 /**
- * Left half of the window snaps left, right half snaps right. Matches dragging the card
- * toward a corner and letting go.
+ * A release in the left half snaps left, the right half right; a fast fling wins over the
+ * release point so dragging feels like flicking the card toward a corner.
  */
-fun snapMiniSide(releaseX: Float, containerWidth: Float): MiniSide =
-    if (releaseX < containerWidth / 2f) MiniSide.Left else MiniSide.Right
+fun snapMiniSide(releaseX: Float, containerWidth: Float, velocityX: Float = 0f): MiniSide = when {
+    velocityX <= -MINI_FLING_VELOCITY -> MiniSide.Left
+    velocityX >= MINI_FLING_VELOCITY -> MiniSide.Right
+    releaseX < containerWidth / 2f -> MiniSide.Left
+    else -> MiniSide.Right
+}
+
+/** Vertical travel (fraction of the card height) that dismisses the mini player on release. */
+internal const val MINI_DISMISS_FRACTION = 0.33f
+
+/** Downward release speed (px/s) that dismisses even if the card was not dragged far. */
+internal const val MINI_DISMISS_VELOCITY = 1_000f
+
+/** True when a vertical release should dismiss: dragged far enough down, or flicked down. */
+fun shouldDismissMini(offsetY: Float, cardHeight: Float, velocityY: Float): Boolean =
+    offsetY >= cardHeight * MINI_DISMISS_FRACTION || velocityY >= MINI_DISMISS_VELOCITY
 
 data class WatchUiState(
     val channelLogin: String = "",
@@ -65,6 +85,7 @@ data class WatchUiState(
 @HiltViewModel
 class WatchViewModel @Inject constructor(
     private val resolver: PlaylistResolver,
+    private val adBlockSettings: AdBlockSettingsStore,
     playerFactory: PlayerFactory,
     playbackGate: PlaybackGate,
     savedStateHandle: SavedStateHandle,
@@ -84,6 +105,8 @@ class WatchViewModel @Inject constructor(
     val miniSide: StateFlow<MiniSide> = _miniSide.asStateFlow()
 
     private var currentMethod: PlaybackMethod? = null
+    /** The in-flight source resolution; starting a new one supersedes it. */
+    private var resolveJob: Job? = null
     private var adBreakHandled = false
     private var lastSourceSwitchAtMs = 0L
     private var errorRetries = 0
@@ -131,6 +154,7 @@ class WatchViewModel @Inject constructor(
 
     /** Stops playback and removes the mini player. */
     fun close() {
+        resolveJob?.cancel()
         playerHolder.stop()
         login = ""
         currentMethod = null
@@ -149,16 +173,33 @@ class WatchViewModel @Inject constructor(
     }
 
     private fun resolveAndPlay() {
-        viewModelScope.launch {
+        // Source probes take seconds; a newer resolve cancels the old one so a late result
+        // cannot overwrite the channel the viewer switched to, or restart playback after close.
+        resolveJob?.cancel()
+        val requestedLogin = login
+        resolveJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null, adBreakDetected = false) }
+            val adBlockEnabled = adBlockSettings.adBlockEnabled.first()
+            val disabledProxies = adBlockSettings.disabledProxies.first()
             try {
                 val resolved: ResolvedPlayback = withContext(Dispatchers.IO) {
                     resolver.resolve(
-                        login = login,
+                        login = requestedLogin,
                         excluding = _state.value.excludedProxies,
-                        onStatus = { message -> _state.update { it.copy(status = message) } },
+                        adBlockEnabled = adBlockEnabled,
+                        disabledProxies = disabledProxies,
+                        onStatus = { message ->
+                            _state.update { current ->
+                                if (current.channelLogin == requestedLogin) {
+                                    current.copy(status = message)
+                                } else {
+                                    current
+                                }
+                            }
+                        },
                     )
                 }
+                if (login != requestedLogin) return@launch
                 currentMethod = resolved.method
                 _state.update {
                     it.copy(
@@ -166,10 +207,10 @@ class WatchViewModel @Inject constructor(
                         method = resolved.method.label,
                         source = resolved.method.shortLabel,
                         isVerified = resolved.verified,
-                        status = if (resolved.verified) {
-                            "Ad-free stream verified"
-                        } else {
-                            "No ad-free stream available right now"
+                        status = when {
+                            !adBlockEnabled -> "Ad blocking is off"
+                            resolved.verified -> "Ad-free stream verified"
+                            else -> "No ad-free stream available right now"
                         },
                     )
                 }
@@ -177,9 +218,9 @@ class WatchViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: PlaybackException) {
-                showError(e.message ?: "Could not start playback")
+                if (login == requestedLogin) showError(e.message ?: "Could not start playback")
             } catch (e: Exception) {
-                showError(e.message ?: "Could not start playback")
+                if (login == requestedLogin) showError(e.message ?: "Could not start playback")
             }
         }
     }

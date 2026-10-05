@@ -147,6 +147,40 @@ class PlaylistResolverTest {
     }
 
     @Test
+    fun `ad blocking off skips proxies and players and uses the site stream`() = runTest {
+        val (resolver, fetcher) = resolver(adsByHost = emptyMap())
+
+        val result = resolver.resolve("dona", adBlockEnabled = false)
+
+        assertThat(result.method).isEqualTo(PlaybackMethod.Direct)
+        assertThat(result.verified).isFalse()
+        assertThat(result.playlistUrl).contains("playerType=site")
+        assertThat(fetcher.requested).isEmpty()
+    }
+
+    @Test
+    fun `proxies switched off in settings are never probed`() = runTest {
+        val (resolver, fetcher) = resolver(adsByHost = emptyMap())
+
+        val result = resolver.resolve("dona", disabledProxies = setOf("proxy-one.example"))
+
+        assertThat(result.method).isEqualTo(PlaybackMethod.Proxied("proxy-two.example"))
+        assertThat(fetcher.requested.none { "proxy-one.example" in it }).isTrue()
+    }
+
+    @Test
+    fun `all proxies switched off falls through to a player type swap`() = runTest {
+        val (resolver, _) = resolver(adsByHost = emptyMap())
+
+        val result = resolver.resolve(
+            login = "dona",
+            disabledProxies = setOf("proxy-one.example", "proxy-two.example"),
+        )
+
+        assertThat(result.method).isEqualTo(PlaybackMethod.PlayerTypeSwap("popout"))
+    }
+
+    @Test
     fun `fails when the channel itself is unavailable`() = runTest {
         val (resolver, _) = resolver(
             adsByHost = mapOf(

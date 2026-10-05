@@ -12,6 +12,9 @@ private val json = Json {
 
 /** One emote provider. Both calls throw on network or parse errors; the repository absorbs them. */
 interface EmoteProvider {
+    /** Which provider this is, for enable/disable filtering. */
+    val source: EmoteSource
+
     suspend fun global(): List<Emote>
     suspend fun channel(roomId: String): List<Emote>
 }
@@ -63,6 +66,8 @@ object SevenTvParser {
 }
 
 class SevenTvProvider(private val fetcher: TextFetcher) : EmoteProvider {
+    override val source = EmoteSource.SevenTv
+
     override suspend fun global(): List<Emote> =
         SevenTvParser.parseSet(fetcher.fetchText("https://7tv.io/v3/emote-sets/global"))
 
@@ -98,6 +103,8 @@ object BttvParser {
 }
 
 class BttvProvider(private val fetcher: TextFetcher) : EmoteProvider {
+    override val source = EmoteSource.Bttv
+
     override suspend fun global(): List<Emote> =
         BttvParser.parseGlobal(fetcher.fetchText("https://api.betterttv.net/3/cached/emotes/global"))
 
@@ -153,6 +160,8 @@ object FfzParser {
 }
 
 class FfzProvider(private val fetcher: TextFetcher) : EmoteProvider {
+    override val source = EmoteSource.Ffz
+
     override suspend fun global(): List<Emote> =
         FfzParser.parseGlobal(fetcher.fetchText("https://api.frankerfacez.com/v1/set/global"))
 

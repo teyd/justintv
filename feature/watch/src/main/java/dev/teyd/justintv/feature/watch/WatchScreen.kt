@@ -3,6 +3,7 @@ package dev.teyd.justintv.feature.watch
 import android.app.Activity
 import android.content.Context
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import android.content.ContextWrapper
 import android.content.res.Configuration
 import androidx.compose.foundation.background
@@ -135,19 +136,22 @@ private fun Immersive(enabled: Boolean) {
     }
 }
 
-/** Sets status bar icon contrast for this screen only, restoring the previous setting after. */
+/** Sets system bar icon contrast for this screen only; the activity's default is re-applied after. */
 @Composable
 private fun LightStatusBarIcons(light: Boolean) {
     val view = LocalView.current
-    DisposableEffect(light) {
-        val window = view.context.findActivity()?.window
-        if (window == null) {
+    val configuration = LocalConfiguration.current
+    DisposableEffect(light, configuration) {
+        val activity = view.context.findActivity() as? ComponentActivity
+        if (activity == null) {
             onDispose { }
         } else {
-            val controller = WindowCompat.getInsetsController(window, view)
-            val previous = controller.isAppearanceLightStatusBars
+            val controller = WindowCompat.getInsetsController(activity.window, view)
             controller.isAppearanceLightStatusBars = light
-            onDispose { controller.isAppearanceLightStatusBars = previous }
+            controller.isAppearanceLightNavigationBars = light
+            // The activity's auto style follows the system theme, which may have changed
+            // while this screen was up; re-applying it is the correct restore.
+            onDispose { activity.enableEdgeToEdge() }
         }
     }
 }

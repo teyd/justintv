@@ -9,6 +9,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.MediaSource
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,7 +70,10 @@ class PlayerHolder(
     private val _selectedQuality = MutableStateFlow<VideoQuality?>(null)
     val selectedQuality: StateFlow<VideoQuality?> = _selectedQuality.asStateFlow()
 
-    private var droppedFrames = 0
+    /** Written from the playback and analytics threads, read from the UI thread. */
+    private val droppedFrameCount = AtomicInteger()
+
+    @Volatile
     private var bandwidthBps: Long? = null
 
     private val listener = object : Player.Listener {
@@ -92,7 +96,7 @@ class PlayerHolder(
 
     private val analytics = object : AnalyticsListener {
         override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {
-            this@PlayerHolder.droppedFrames += droppedFrames
+            droppedFrameCount.addAndGet(droppedFrames)
         }
 
         override fun onBandwidthEstimate(
@@ -111,7 +115,7 @@ class PlayerHolder(
     }
 
     fun play(url: String) {
-        droppedFrames = 0
+        droppedFrameCount.set(0)
         _playback.update { PlaybackState(isBuffering = true) }
         exoPlayer.setMediaSource(mediaSourceFor(url))
         exoPlayer.prepare()
@@ -152,7 +156,7 @@ class PlayerHolder(
             bitrate = format?.bitrate?.takeIf { it > 0 },
             codecs = format?.codecs,
             bandwidthBps = bandwidthBps,
-            droppedFrames = droppedFrames,
+            droppedFrames = droppedFrameCount.get(),
             playbackSpeed = exoPlayer.playbackParameters.speed,
         )
     }

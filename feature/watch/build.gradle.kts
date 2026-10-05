@@ -34,6 +34,7 @@ dependencies {
     implementation(project(":core:player"))
     implementation(project(":core:adfree"))
     implementation(project(":core:chat"))
+    implementation(project(":core:data"))
     implementation(project(":core:model"))
 
     implementation(libs.androidx.core.ktx)

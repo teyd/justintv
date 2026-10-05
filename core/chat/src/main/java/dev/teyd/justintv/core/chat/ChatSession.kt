@@ -19,6 +19,12 @@ enum class ChatStatus { Connecting, Connected, Reconnecting }
 /** What the chat screen needs to know about the connection. */
 data class ChatConnection(val status: ChatStatus = ChatStatus.Connecting)
 
+/** What to load from the recent-messages history service when chat opens. */
+data class ChatHistorySettings(
+    val enabled: Boolean = true,
+    val limit: Int = RecentMessages.DEFAULT_LIMIT,
+)
+
 /**
  * One channel's chat: connects, reconnects with backoff, loads emotes once the room is known,
  * and emits parsed messages.
@@ -27,6 +33,7 @@ class ChatSession(
     private val irc: TwitchIrcClient,
     private val emotes: EmoteRepository,
     private val recent: RecentMessages,
+    private val historySettings: suspend () -> ChatHistorySettings = { ChatHistorySettings() },
 ) {
     val connection = MutableStateFlow(ChatConnection())
 
@@ -37,7 +44,9 @@ class ChatSession(
         var attempt = 0
 
         launch {
-            val history = recent.fetch(login)
+            val settings = historySettings()
+            if (!settings.enabled) return@launch
+            val history = recent.fetch(login, limit = settings.limit)
             val roomId = history.firstNotNullOfOrNull { it.tags["room-id"] }
             index.set(emotes.indexFor(roomId))
             history.forEach { line ->

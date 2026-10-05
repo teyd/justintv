@@ -22,9 +22,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -67,11 +70,21 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tabs = remember(state.isLoggedIn) { homeTabs(state.isLoggedIn) }
+    var previousTabs by remember { mutableStateOf(tabs) }
     val pagerState = rememberPagerState(
         initialPage = tabs.indexOf(HomeTab.Live).coerceAtLeast(0),
         pageCount = { tabs.size },
     )
     val scope = rememberCoroutineScope()
+
+    // Login inserts the Following tab at the front, shifting every index. Keep the tab the
+    // viewer is on selected instead of letting the pager silently point at a different one.
+    LaunchedEffect(tabs) {
+        if (tabs == previousTabs) return@LaunchedEffect
+        val keep = previousTabs.getOrNull(pagerState.currentPage) ?: HomeTab.Live
+        previousTabs = tabs
+        pagerState.scrollToPage(tabs.indexOf(keep).coerceAtLeast(0))
+    }
 
     Scaffold(
         topBar = {
@@ -89,7 +102,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(top = padding.calculateTopPadding()),
         ) {
             PrimaryTabRow(selectedTabIndex = pagerState.currentPage.coerceIn(0, tabs.lastIndex)) {
                 tabs.forEachIndexed { index, tab ->
@@ -113,12 +126,19 @@ fun HomeScreen(
                         emptyText = "Nobody is live for this filter",
                         onRefresh = viewModel::refreshLive,
                         onWatch = onWatch,
+                        contentPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
                     )
 
                     HomeTab.Categories -> CategoriesTab(
                         state = state.games,
                         onRefresh = viewModel::refreshGames,
                         onOpenGame = onOpenGame,
+                        contentPadding = PaddingValues(
+                            start = 8.dp,
+                            top = 8.dp,
+                            end = 8.dp,
+                            bottom = 8.dp + padding.calculateBottomPadding(),
+                        ),
                     )
 
                     null -> Unit
@@ -144,6 +164,7 @@ private fun CategoriesTab(
     state: LoadState<Game>,
     onRefresh: () -> Unit,
     onOpenGame: (String) -> Unit,
+    contentPadding: PaddingValues,
 ) {
     PullToRefreshBox(
         isRefreshing = state.isLoading && state.items.isNotEmpty(),
@@ -163,7 +184,7 @@ private fun CategoriesTab(
             else -> LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 110.dp),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(8.dp),
+                contentPadding = contentPadding,
             ) {
                 items(state.items, key = { it.id }) { game ->
                     GameCard(game = game, onClick = { onOpenGame(game.name) })

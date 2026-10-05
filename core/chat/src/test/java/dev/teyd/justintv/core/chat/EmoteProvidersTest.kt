@@ -2,6 +2,8 @@ package dev.teyd.justintv.core.chat
 
 import com.google.common.truth.Truth.assertThat
 import dev.teyd.justintv.core.network.TextFetcher
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -91,6 +93,7 @@ class EmoteProvidersTest {
         private val global: List<Emote> = emptyList(),
         private val channel: List<Emote> = emptyList(),
         private val fail: Boolean = false,
+        override val source: EmoteSource = EmoteSource.Bttv,
     ) : EmoteProvider {
         var globalCalls = 0
         override suspend fun global(): List<Emote> {
@@ -144,6 +147,38 @@ class EmoteProvidersTest {
         repository.indexFor("2")
 
         assertThat(provider.globalCalls).isEqualTo(1)
+    }
+
+    @Test
+    fun `providers that are switched off are not queried`() = runTest {
+        val bttv = FakeProvider(global = listOf(emote("B", EmoteSource.Bttv)), source = EmoteSource.Bttv)
+        val seven = FakeProvider(global = listOf(emote("S", EmoteSource.SevenTv)), source = EmoteSource.SevenTv)
+        val repository = EmoteRepository(
+            providers = listOf(bttv, seven),
+            enabledSources = flowOf(setOf(EmoteSource.Bttv)),
+        )
+
+        val index = repository.indexFor("1")
+
+        assertThat(index["B"]).isNotNull()
+        assertThat(index["S"]).isNull()
+        assertThat(seven.globalCalls).isEqualTo(0)
+    }
+
+    @Test
+    fun `turning a provider off refreshes the cached global set`() = runTest {
+        val bttv = FakeProvider(global = listOf(emote("B", EmoteSource.Bttv)), source = EmoteSource.Bttv)
+        val seven = FakeProvider(global = listOf(emote("S", EmoteSource.SevenTv)), source = EmoteSource.SevenTv)
+        val enabled = MutableStateFlow(setOf(EmoteSource.Bttv, EmoteSource.SevenTv))
+        val repository = EmoteRepository(providers = listOf(bttv, seven), enabledSources = enabled)
+
+        assertThat(repository.indexFor("1")["S"]).isNotNull()
+
+        enabled.value = setOf(EmoteSource.Bttv)
+        val after = repository.indexFor("2")
+
+        assertThat(after["B"]).isNotNull()
+        assertThat(after["S"]).isNull()
     }
 
     @Test

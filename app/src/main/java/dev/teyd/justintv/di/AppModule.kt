@@ -15,12 +15,16 @@ import dev.teyd.justintv.core.adfree.PlaylistResolver
 import dev.teyd.justintv.core.adfree.PlaylistVerifier
 import dev.teyd.justintv.core.adfree.ProxyHealthChecker
 import dev.teyd.justintv.core.chat.BttvProvider
+import dev.teyd.justintv.core.chat.ChatHistorySettings
 import dev.teyd.justintv.core.chat.ChatSession
 import dev.teyd.justintv.core.chat.RecentMessages
 import dev.teyd.justintv.core.chat.EmoteRepository
+import dev.teyd.justintv.core.chat.EmoteSource
 import dev.teyd.justintv.core.chat.FfzProvider
 import dev.teyd.justintv.core.chat.SevenTvProvider
 import dev.teyd.justintv.core.chat.TwitchIrcClient
+import dev.teyd.justintv.core.data.AdBlockSettingsStore
+import dev.teyd.justintv.core.data.ChatSettingsStore
 import dev.teyd.justintv.core.data.LanguageFilterStore
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import dev.teyd.justintv.core.data.SessionStore
@@ -33,6 +37,8 @@ import dev.teyd.justintv.core.network.TwitchPlaybackApi
 import dev.teyd.justintv.core.player.PlayerFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 
 @Module
@@ -96,6 +102,16 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun adBlockSettingsStore(dataStore: DataStore<Preferences>): AdBlockSettingsStore =
+        AdBlockSettingsStore(dataStore)
+
+    @Provides
+    @Singleton
+    fun chatSettingsStore(dataStore: DataStore<Preferences>): ChatSettingsStore =
+        ChatSettingsStore(dataStore)
+
+    @Provides
+    @Singleton
     fun playbackGate(): dev.teyd.justintv.core.player.PlaybackGate = dev.teyd.justintv.core.player.PlaybackGate()
 
     @Provides
@@ -109,12 +125,24 @@ object AppModule {
     @Singleton
     fun twitchIrcClient(httpClient: OkHttpClient): TwitchIrcClient = TwitchIrcClient(httpClient)
 
-    /** One repository for the whole app, so global emote sets are downloaded once. */
+    /** One repository for the whole app, so global emote sets are downloaded once per toggle set. */
     @Provides
     @Singleton
-    fun emoteRepository(httpClient: OkHttpClient): EmoteRepository {
+    fun emoteRepository(
+        httpClient: OkHttpClient,
+        chatSettings: ChatSettingsStore,
+    ): EmoteRepository {
         val fetcher = OkHttpTextFetcher(probeClient(httpClient, EMOTE_CALL_TIMEOUT_SECONDS))
-        return EmoteRepository(listOf(SevenTvProvider(fetcher), BttvProvider(fetcher), FfzProvider(fetcher)))
+        return EmoteRepository(
+            providers = listOf(SevenTvProvider(fetcher), BttvProvider(fetcher), FfzProvider(fetcher)),
+            enabledSources = combine(chatSettings.sevenTv, chatSettings.bttv, chatSettings.ffz) { seven, bttv, ffz ->
+                buildSet {
+                    if (seven) add(EmoteSource.SevenTv)
+                    if (bttv) add(EmoteSource.Bttv)
+                    if (ffz) add(EmoteSource.Ffz)
+                }
+            },
+        )
     }
 
     /** Not a singleton: each chat screen gets its own session and connection state. */
@@ -123,7 +151,18 @@ object AppModule {
         irc: TwitchIrcClient,
         emotes: EmoteRepository,
         httpClient: OkHttpClient,
-    ): ChatSession = ChatSession(irc, emotes, RecentMessages(httpClient))
+        chatSettings: ChatSettingsStore,
+    ): ChatSession = ChatSession(
+        irc = irc,
+        emotes = emotes,
+        recent = RecentMessages(httpClient),
+        historySettings = {
+            ChatHistorySettings(
+                enabled = chatSettings.recentMessages.first(),
+                limit = chatSettings.recentMessageLimit.first(),
+            )
+        },
+    )
 
     /** Shares the connection pool and dispatcher with [base] but gives up quickly. */
     private fun probeClient(base: OkHttpClient, callTimeoutSeconds: Long): OkHttpClient =
