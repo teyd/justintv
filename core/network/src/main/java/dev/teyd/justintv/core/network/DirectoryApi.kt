@@ -1,8 +1,11 @@
 package dev.teyd.justintv.core.network
 
+import dev.teyd.justintv.core.model.ChannelHit
+import dev.teyd.justintv.core.model.ChannelPresence
 import dev.teyd.justintv.core.model.Game
 import dev.teyd.justintv.core.model.LiveStream
 import dev.teyd.justintv.core.model.twitchImageUrl
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -81,6 +84,43 @@ internal data class ChannelStreamData(
 )
 
 @Serializable
+internal data class SearchForData(
+    val searchFor: SearchForResult? = null,
+)
+
+@Serializable
+internal data class SearchForResult(
+    val channels: SearchChannelConnection? = null,
+)
+
+@Serializable
+internal data class SearchChannelConnection(
+    val edges: List<SearchChannelEdge> = emptyList(),
+)
+
+@Serializable
+internal data class SearchChannelEdge(
+    val item: SearchUserItem? = null,
+)
+
+@Serializable
+internal data class SearchUserItem(
+    @SerialName("__typename") val typeName: String? = null,
+    val id: String? = null,
+    val login: String? = null,
+    val displayName: String? = null,
+    val profileImageURL: String? = null,
+    val stream: SearchStreamNode? = null,
+)
+
+@Serializable
+internal data class SearchStreamNode(
+    val id: String? = null,
+    val title: String? = null,
+    val viewersCount: Int = 0,
+)
+
+@Serializable
 internal data class ChannelUser(
     val stream: ChannelStream? = null,
 )
@@ -122,6 +162,34 @@ object DirectoryParser {
     /** Null when the channel is offline or unknown. */
     fun parseChannelLive(body: String): ChannelLive? =
         decode<ChannelStreamData>(body).user?.stream?.let { ChannelLive(it.viewersCount, it.createdAt) }
+
+    fun parseChannelSearch(body: String): List<ChannelHit> =
+        decode<SearchForData>(body)
+            .searchFor
+            ?.channels
+            ?.edges
+            .orEmpty()
+            .mapNotNull { edge ->
+                val item = edge.item ?: return@mapNotNull null
+                if (item.typeName != null && item.typeName != "User") return@mapNotNull null
+                val login = item.login?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val stream = item.stream
+                ChannelHit(
+                    id = item.id?.takeIf { it.isNotBlank() } ?: login,
+                    login = login,
+                    displayName = item.displayName?.takeIf { it.isNotBlank() } ?: login,
+                    avatarUrl = item.profileImageURL,
+                    presence =
+                        if (stream == null) {
+                            ChannelPresence.Offline
+                        } else {
+                            ChannelPresence.Live(
+                                title = stream.title.orEmpty(),
+                                viewerCount = stream.viewersCount,
+                            )
+                        },
+                )
+            }.distinctBy { it.login.lowercase() }
 
     fun parseTopGames(body: String): List<Game> =
         decode<TopGamesData>(body).games?.edges.orEmpty().mapNotNull { edge ->
@@ -187,6 +255,9 @@ interface DirectorySource {
 
     /** Current viewers and start time, or null when the channel is not live. */
     suspend fun channelLive(login: String): ChannelLive?
+
+    /** Channels matching [query], live and offline. Empty when nothing matches. */
+    suspend fun searchChannels(query: String): List<ChannelHit>
 }
 
 /** Anonymous directory over GraphQL. See [DirectoryQueries] for its limits. */
@@ -205,6 +276,9 @@ class TwitchDirectoryApi(
 
     override suspend fun channelLive(login: String): ChannelLive? =
         DirectoryParser.parseChannelLive(request(DirectoryQueries.channelStream(login)))
+
+    override suspend fun searchChannels(query: String): List<ChannelHit> =
+        DirectoryParser.parseChannelSearch(request(DirectoryQueries.searchChannels(query)))
 
     private suspend fun request(query: String): String {
         val body =

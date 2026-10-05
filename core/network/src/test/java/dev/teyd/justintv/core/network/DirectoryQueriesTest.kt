@@ -58,6 +58,17 @@ class DirectoryQueriesTest {
     }
 
     @Test
+    fun `channel search escapes the query and asks for live and offline fields`() {
+        val query = DirectoryQueries.searchChannels("Say \"hi\"}) { evil")
+
+        assertThat(query).contains("searchFor(userQuery:\"Say \\\"hi\\\"}) { evil\"")
+        assertThat(query).contains("platform:\"web\"")
+        assertThat(query).contains("profileImageURL")
+        assertThat(query).contains("viewersCount")
+        assertThat(query).contains("stream{id title viewersCount}")
+    }
+
+    @Test
     fun `top games asks for the most watched first`() {
         val query = DirectoryQueries.topGames()
 

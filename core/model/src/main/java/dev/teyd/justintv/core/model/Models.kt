@@ -22,6 +22,30 @@ data class Game(
     val viewerCount: Int,
 )
 
+/** Whether a searched channel is on air, and what it is playing if so. */
+sealed interface ChannelPresence {
+    data class Live(
+        val title: String,
+        val viewerCount: Int,
+    ) : ChannelPresence
+
+    data object Offline : ChannelPresence
+}
+
+/**
+ * A channel found by search.
+ *
+ * [presence] is [ChannelPresence.Offline] when Twitch has no live stream for it. The word
+ * shown in that case is a UI choice, not part of this model.
+ */
+data class ChannelHit(
+    val id: String,
+    val login: String,
+    val displayName: String,
+    val avatarUrl: String?,
+    val presence: ChannelPresence,
+)
+
 /** A channel that is live right now. */
 data class LiveStream(
     val id: String,

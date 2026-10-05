@@ -1,6 +1,7 @@
 package dev.teyd.justintv.core.network
 
 import com.google.common.truth.Truth.assertThat
+import dev.teyd.justintv.core.model.ChannelPresence
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -107,6 +108,45 @@ class DirectoryParserTest {
         assertThat(games.single().name).isEqualTo("Just Chatting")
         assertThat(games.single().viewerCount).isEqualTo(162687)
         assertThat(games.single().boxArtUrl).contains("509658")
+    }
+
+    @Test
+    fun `channel search keeps live titles and marks a null stream offline`() {
+        val body =
+            """
+            {"data":{"searchFor":{"channels":{"edges":[
+              {"item":{"__typename":"User","id":"1","login":"shrood","displayName":"shrood",
+                "profileImageURL":"https://static-cdn.jtvnw.net/shrood-70x70.png",
+                "stream":{"id":"9","title":"24/7 VODS","viewersCount":116}}},
+              {"item":{"__typename":"User","id":"2","login":"shroud","displayName":"shroud",
+                "profileImageURL":"https://static-cdn.jtvnw.net/shroud-70x70.png","stream":null}},
+              {"item":{"__typename":"Game","id":"3"}},
+              {"item":{"__typename":"User","id":"1","login":"shrood","displayName":"shrood","stream":null}}
+            ]}}}}
+            """.trimIndent()
+
+        val hits = DirectoryParser.parseChannelSearch(body)
+
+        assertThat(hits.map { it.login }).containsExactly("shrood", "shroud").inOrder()
+        val live = hits[0]
+        assertThat(live.avatarUrl).contains("shrood")
+        assertThat(live.presence).isEqualTo(ChannelPresence.Live("24/7 VODS", 116))
+        assertThat(hits[1].presence).isEqualTo(ChannelPresence.Offline)
+    }
+
+    @Test
+    fun `a live channel with no title stays live rather than looking offline`() {
+        val body =
+            """
+            {"data":{"searchFor":{"channels":{"edges":[
+              {"item":{"__typename":"User","login":"quiet","stream":{"viewersCount":0,"title":null}}}
+            ]}}}}
+            """.trimIndent()
+
+        val hit = DirectoryParser.parseChannelSearch(body).single()
+
+        assertThat(hit.presence).isEqualTo(ChannelPresence.Live("", 0))
+        assertThat(hit.displayName).isEqualTo("quiet")
     }
 
     @Test

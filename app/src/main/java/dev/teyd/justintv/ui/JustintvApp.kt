@@ -21,6 +21,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import dev.teyd.justintv.core.model.ChannelHit
+import dev.teyd.justintv.core.model.ChannelPresence
 import dev.teyd.justintv.core.model.LiveStream
 import dev.teyd.justintv.core.player.VideoPlayer
 import dev.teyd.justintv.feature.settings.SettingsScreen
@@ -87,6 +89,7 @@ fun JustintvApp() {
             composable(ROUTE_HOME) {
                 HomeScreen(
                     onWatch = { stream -> watch(playback, chat, navController, stream) },
+                    onOpenChannel = { hit -> watchChannel(playback, chat, navController, hit) },
                     onOpenGame = { name -> navController.navigate("$ROUTE_GAME/${Uri.encode(name)}") { launchSingleTop = true } },
                     onOpenSettings = { navController.navigate(ROUTE_SETTINGS) { launchSingleTop = true } },
                     extraBottomPadding = dockPadding,
@@ -157,4 +160,30 @@ private fun watch(
     )
     chat.open(stream.login)
     navController.navigate("$ROUTE_WATCH/${Uri.encode(stream.login)}") { launchSingleTop = true }
+}
+
+private fun watchChannel(
+    playback: dev.teyd.justintv.feature.watch.WatchViewModel,
+    chat: dev.teyd.justintv.feature.watch.ChatViewModel,
+    navController: androidx.navigation.NavHostController,
+    hit: ChannelHit,
+) {
+    val title =
+        when (val presence = hit.presence) {
+            is ChannelPresence.Live -> presence.title
+            ChannelPresence.Offline -> ""
+        }
+    val viewers =
+        when (val presence = hit.presence) {
+            is ChannelPresence.Live -> presence.viewerCount
+            ChannelPresence.Offline -> null
+        }
+    playback.open(
+        channel = hit.login,
+        displayName = hit.displayName,
+        title = title,
+        viewers = viewers,
+    )
+    chat.open(hit.login)
+    navController.navigate("$ROUTE_WATCH/${Uri.encode(hit.login)}") { launchSingleTop = true }
 }

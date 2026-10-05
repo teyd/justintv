@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -11,6 +12,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.teyd.justintv.core.model.ChannelHit
 import dev.teyd.justintv.core.model.Game
 import dev.teyd.justintv.core.model.LiveStream
 import kotlinx.coroutines.launch
@@ -68,12 +72,27 @@ fun homeTabs(isLoggedIn: Boolean): List<HomeTab> =
 @Composable
 fun HomeScreen(
     onWatch: (LiveStream) -> Unit,
+    onOpenChannel: (ChannelHit) -> Unit,
     onOpenGame: (String) -> Unit,
     onOpenSettings: () -> Unit,
     extraBottomPadding: Dp = 0.dp,
     viewModel: HomeViewModel = hiltViewModel(),
+    searchViewModel: ChannelSearchViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val search by searchViewModel.state.collectAsStateWithLifecycle()
+    var searchOpen by remember { mutableStateOf(false) }
+
+    fun closeSearch() {
+        searchOpen = false
+        searchViewModel.clear()
+    }
+
+    fun openTypedChannel() {
+        val hit = ChannelSearch.rows(search.query, search.hits).firstOrNull() ?: return
+        closeSearch()
+        onOpenChannel(hit)
+    }
     val tabs = remember(state.isLoggedIn) { homeTabs(state.isLoggedIn) }
     var previousTabs by remember { mutableStateOf(tabs) }
     val pagerState =
@@ -95,11 +114,34 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("JustinTV") },
+                title = {
+                    if (searchOpen) {
+                        ChannelSearchField(
+                            query = search.query,
+                            onQueryChange = searchViewModel::onQueryChange,
+                            onSubmit = ::openTypedChannel,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        Text("JustinTV")
+                    }
+                },
+                navigationIcon = {
+                    if (searchOpen) {
+                        IconButton(onClick = ::closeSearch) {
+                            Icon(Icons.Filled.Close, contentDescription = "Close search")
+                        }
+                    }
+                },
                 actions = {
-                    LanguageFilterAction(selected = state.languages, onChange = viewModel::setLanguages)
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    if (!searchOpen) {
+                        IconButton(onClick = { searchOpen = true }) {
+                            Icon(Icons.Filled.Search, contentDescription = "Search")
+                        }
+                        LanguageFilterAction(selected = state.languages, onChange = viewModel::setLanguages)
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        }
                     }
                 },
             )
@@ -111,64 +153,81 @@ fun HomeScreen(
                     .fillMaxSize()
                     .padding(top = padding.calculateTopPadding()),
         ) {
-            PrimaryTabRow(selectedTabIndex = pagerState.currentPage.coerceIn(0, tabs.lastIndex)) {
-                tabs.forEachIndexed { index, tab ->
-                    Tab(
-                        selected = pagerState.currentPage == index,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                        text = { Text(tab.title) },
-                    )
+            if (searchOpen && search.query.isNotBlank()) {
+                ChannelSearchResults(
+                    query = search.query,
+                    hits = search.hits,
+                    isSearching = search.isSearching,
+                    error = search.error,
+                    onOpen = { hit ->
+                        closeSearch()
+                        onOpenChannel(hit)
+                    },
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(bottom = padding.calculateBottomPadding() + extraBottomPadding),
+                )
+            } else {
+                PrimaryTabRow(selectedTabIndex = pagerState.currentPage.coerceIn(0, tabs.lastIndex)) {
+                    tabs.forEachIndexed { index, tab ->
+                        Tab(
+                            selected = pagerState.currentPage == index,
+                            onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                            text = { Text(tab.title) },
+                        )
+                    }
                 }
-            }
 
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-            ) { page ->
-                when (tabs.getOrNull(page)) {
-                    HomeTab.Following -> {
-                        StreamList(
-                            state = state.following,
-                            emptyText = "Nobody you follow is live",
-                            onRefresh = viewModel::refreshFollowing,
-                            onWatch = onWatch,
-                            contentPadding =
-                                PaddingValues(
-                                    bottom = padding.calculateBottomPadding() + extraBottomPadding,
-                                ),
-                        )
-                    }
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                ) { page ->
+                    when (tabs.getOrNull(page)) {
+                        HomeTab.Following -> {
+                            StreamList(
+                                state = state.following,
+                                emptyText = "Nobody you follow is live",
+                                onRefresh = viewModel::refreshFollowing,
+                                onWatch = onWatch,
+                                contentPadding =
+                                    PaddingValues(
+                                        bottom = padding.calculateBottomPadding() + extraBottomPadding,
+                                    ),
+                            )
+                        }
 
-                    HomeTab.Live -> {
-                        StreamList(
-                            state = state.live,
-                            emptyText = "Nobody is live for this filter",
-                            onRefresh = viewModel::refreshLive,
-                            onWatch = onWatch,
-                            contentPadding =
-                                PaddingValues(
-                                    bottom = padding.calculateBottomPadding() + extraBottomPadding,
-                                ),
-                        )
-                    }
+                        HomeTab.Live -> {
+                            StreamList(
+                                state = state.live,
+                                emptyText = "Nobody is live for this filter",
+                                onRefresh = viewModel::refreshLive,
+                                onWatch = onWatch,
+                                contentPadding =
+                                    PaddingValues(
+                                        bottom = padding.calculateBottomPadding() + extraBottomPadding,
+                                    ),
+                            )
+                        }
 
-                    HomeTab.Categories -> {
-                        CategoriesTab(
-                            state = state.games,
-                            onRefresh = viewModel::refreshGames,
-                            onOpenGame = onOpenGame,
-                            contentPadding =
-                                PaddingValues(
-                                    start = 8.dp,
-                                    top = 8.dp,
-                                    end = 8.dp,
-                                    bottom = 8.dp + padding.calculateBottomPadding() + extraBottomPadding,
-                                ),
-                        )
-                    }
+                        HomeTab.Categories -> {
+                            CategoriesTab(
+                                state = state.games,
+                                onRefresh = viewModel::refreshGames,
+                                onOpenGame = onOpenGame,
+                                contentPadding =
+                                    PaddingValues(
+                                        start = 8.dp,
+                                        top = 8.dp,
+                                        end = 8.dp,
+                                        bottom = 8.dp + padding.calculateBottomPadding() + extraBottomPadding,
+                                    ),
+                            )
+                        }
 
-                    null -> {
-                        Unit
+                        null -> {
+                            Unit
+                        }
                     }
                 }
             }

@@ -46,4 +46,19 @@ object DirectoryQueries {
     fun topGames(limit: Int = MAX_GAMES): String =
         "query{games(first:${limit.coerceIn(1, MAX_GAMES)}, options:{sort:VIEWER_COUNT})" +
             "{edges{node{id name displayName boxArtURL(width:285,height:380) viewersCount}}}}"
+
+    /**
+     * Channel typeahead.
+     *
+     * `searchSuggestions` drops the stream title and often returns an empty suggestion.
+     * `searchFor` returns the channels themselves, live and offline, which is what the
+     * autocomplete row needs. Anonymous GraphQL requires a platform string; `web` is the
+     * one this client id is allowed to send.
+     */
+    fun searchChannels(query: String): String =
+        "query{searchFor(userQuery:${JsonPrimitive(query)}, platform:\"$SEARCH_PLATFORM\")" +
+            "{channels{edges{item{__typename ... on User{id login displayName " +
+            "profileImageURL(width:70) stream{id title viewersCount}}}}}}}"
+
+    private const val SEARCH_PLATFORM = "web"
 }
