@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.teyd.justintv.core.data.LanguageFilterStore
+import dev.teyd.justintv.core.data.SessionStore
 import dev.teyd.justintv.core.model.Game
 import dev.teyd.justintv.core.model.LiveStream
 import dev.teyd.justintv.core.network.DirectorySource
@@ -25,6 +26,7 @@ data class LoadState<T>(
 )
 
 data class HomeUiState(
+    val isLoggedIn: Boolean = false,
     val languages: Set<String> = emptySet(),
     val live: LoadState<LiveStream> = LoadState(isLoading = true),
     val games: LoadState<Game> = LoadState(isLoading = true),
@@ -34,6 +36,7 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val directory: DirectorySource,
     private val languageStore: LanguageFilterStore,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -42,6 +45,11 @@ class HomeViewModel @Inject constructor(
     private var liveJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            sessionStore.isLoggedIn.distinctUntilChanged().collect { loggedIn ->
+                _state.update { it.copy(isLoggedIn = loggedIn) }
+            }
+        }
         viewModelScope.launch {
             languageStore.languages.distinctUntilChanged().collect { languages ->
                 _state.update { it.copy(languages = languages) }

@@ -15,6 +15,7 @@ import dev.teyd.justintv.core.adfree.PlaylistResolver
 import dev.teyd.justintv.core.adfree.PlaylistVerifier
 import dev.teyd.justintv.core.adfree.ProxyHealthChecker
 import dev.teyd.justintv.core.data.LanguageFilterStore
+import dev.teyd.justintv.core.data.SessionStore
 import dev.teyd.justintv.core.network.DirectorySource
 import dev.teyd.justintv.core.network.GqlClient
 import dev.teyd.justintv.core.network.OkHttpTextFetcher
@@ -74,6 +75,10 @@ object AppModule {
     @Singleton
     fun languageFilterStore(dataStore: DataStore<Preferences>): LanguageFilterStore =
         LanguageFilterStore(dataStore)
+
+    @Provides
+    @Singleton
+    fun sessionStore(dataStore: DataStore<Preferences>): SessionStore = SessionStore(dataStore)
 
     @Provides
     @Singleton
