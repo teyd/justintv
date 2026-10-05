@@ -29,6 +29,12 @@ jobs:
       - name: Assemble and test
         run: ./gradlew :app:assembleDebug testDebugUnitTest --stacktrace
 
+      - name: Check formatting
+        run: ./gradlew spotlessCheck
+
+      - name: Lint
+        run: ./gradlew lint
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4
