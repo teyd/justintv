@@ -30,7 +30,7 @@ class LiveChatSmokeTest {
             listOf(SevenTvProvider(fetcher), BttvProvider(fetcher), FfzProvider(fetcher)),
         )
         val channel = TwitchDirectoryApi(GqlClient(base)).topStreams(emptySet()).first().login
-        val session = ChatSession(TwitchIrcClient(base), repository)
+        val session = ChatSession(TwitchIrcClient(base), repository, RecentMessages(base))
 
         val messages = withTimeout(60_000) { session.messages(channel).take(80).toList() }
 

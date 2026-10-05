@@ -85,12 +85,12 @@ fun ChatList(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        if (messages.isEmpty()) {
+        if (messages.isEmpty() && status != ChatStatus.Connected) {
             Text(
                 text = when (status) {
-                    ChatStatus.Connected -> "Waiting for messages…"
                     ChatStatus.Connecting -> "Connecting to chat…"
                     ChatStatus.Reconnecting -> "Chat disconnected, reconnecting…"
+                    ChatStatus.Connected -> ""
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

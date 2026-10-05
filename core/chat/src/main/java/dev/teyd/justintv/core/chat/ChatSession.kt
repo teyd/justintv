@@ -1,6 +1,7 @@
 package dev.teyd.justintv.core.chat
 
 import dev.teyd.justintv.core.model.ChatMessage
+import java.util.Collections
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -25,17 +26,26 @@ data class ChatConnection(val status: ChatStatus = ChatStatus.Connecting)
 class ChatSession(
     private val irc: TwitchIrcClient,
     private val emotes: EmoteRepository,
+    private val recent: RecentMessages,
 ) {
     val connection = MutableStateFlow(ChatConnection())
 
     fun messages(login: String): Flow<ChatMessage> = channelFlow {
         val index = AtomicReference(EmoteIndex.EMPTY)
+        val seenIds = Collections.synchronizedSet(HashSet<String>())
         var emoteJob: Job? = null
         var attempt = 0
 
-        // Loads emotes in the background so the first messages are not held up. Messages that
-        // arrive before they are ready show emote names as text, which is acceptable for a
-        // second or two.
+        launch {
+            val history = recent.fetch(login)
+            val roomId = history.firstNotNullOfOrNull { it.tags["room-id"] }
+            index.set(emotes.indexFor(roomId))
+            history.forEach { line ->
+                val message = ChatMessageParser.parse(line, index.get()) ?: return@forEach
+                if (seenIds.add(message.id)) send(message)
+            }
+        }
+
         fun loadEmotes(roomId: String?, scope: CoroutineScope) {
             emoteJob?.cancel()
             emoteJob = scope.launch(Dispatchers.Default) { index.set(emotes.indexFor(roomId)) }
@@ -56,7 +66,8 @@ class ChatSession(
                             if (message.command == "ROOMSTATE") {
                                 message.tags["room-id"]?.let { loadEmotes(it, this@channelFlow) }
                             } else {
-                                ChatMessageParser.parse(message, index.get())?.let { send(it) }
+                                val parsed = ChatMessageParser.parse(message, index.get()) ?: return@collect
+                                if (seenIds.add(parsed.id)) send(parsed)
                             }
                         }
                     }

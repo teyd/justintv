@@ -13,6 +13,7 @@ import dev.teyd.justintv.core.adfree.ResolvedPlayback
 import dev.teyd.justintv.core.network.PlaybackException
 import dev.teyd.justintv.core.player.ManifestAdDetector
 import dev.teyd.justintv.core.player.PlaybackState
+import dev.teyd.justintv.core.player.PlaybackGate
 import dev.teyd.justintv.core.player.PlayerFactory
 import dev.teyd.justintv.core.player.PlayerHolder
 import javax.inject.Inject
@@ -65,6 +66,7 @@ data class WatchUiState(
 class WatchViewModel @Inject constructor(
     private val resolver: PlaylistResolver,
     playerFactory: PlayerFactory,
+    playbackGate: PlaybackGate,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -93,6 +95,7 @@ class WatchViewModel @Inject constructor(
     }
 
     init {
+        playbackGate.holder = playerHolder
         playerHolder.exoPlayer.addListener(playerListener)
         viewModelScope.launch {
             playerHolder.playback.collect(::onPlaybackState)

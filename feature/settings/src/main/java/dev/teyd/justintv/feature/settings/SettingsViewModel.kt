@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.teyd.justintv.core.adfree.DefaultProxies
 import dev.teyd.justintv.core.adfree.ProxyEndpoint
 import dev.teyd.justintv.core.adfree.ProxyHealthChecker
+import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import javax.inject.Inject
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,7 @@ data class ProxyStatus(
 )
 
 data class SettingsUiState(
+    val backgroundPlayback: Boolean = false,
     val proxyStatuses: List<ProxyStatus> = DefaultProxies.ALL.map { ProxyStatus(it) },
     val isCheckingProxies: Boolean = false,
 )
@@ -28,13 +30,23 @@ data class SettingsUiState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val healthChecker: ProxyHealthChecker,
+    private val playbackSettings: PlaybackSettingsStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            playbackSettings.backgroundPlayback.collect { enabled ->
+                _state.update { it.copy(backgroundPlayback = enabled) }
+            }
+        }
         checkProxies()
+    }
+
+    fun setBackgroundPlayback(enabled: Boolean) {
+        viewModelScope.launch { playbackSettings.setBackgroundPlayback(enabled) }
     }
 
     /**

@@ -17,6 +17,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -53,6 +54,20 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            item {
+                ListItem(
+                    headlineContent = { Text("Play in background") },
+                    supportingContent = {
+                        Text("Keep the stream going when you leave the app. Off keeps playback inside the mini player.")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = state.backgroundPlayback,
+                            onCheckedChange = viewModel::setBackgroundPlayback,
+                        )
+                    },
+                )
+            }
             item {
                 Row(
                     modifier = Modifier

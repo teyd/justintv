@@ -16,11 +16,13 @@ import dev.teyd.justintv.core.adfree.PlaylistVerifier
 import dev.teyd.justintv.core.adfree.ProxyHealthChecker
 import dev.teyd.justintv.core.chat.BttvProvider
 import dev.teyd.justintv.core.chat.ChatSession
+import dev.teyd.justintv.core.chat.RecentMessages
 import dev.teyd.justintv.core.chat.EmoteRepository
 import dev.teyd.justintv.core.chat.FfzProvider
 import dev.teyd.justintv.core.chat.SevenTvProvider
 import dev.teyd.justintv.core.chat.TwitchIrcClient
 import dev.teyd.justintv.core.data.LanguageFilterStore
+import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import dev.teyd.justintv.core.data.SessionStore
 import dev.teyd.justintv.core.network.DirectorySource
 import dev.teyd.justintv.core.network.GqlClient
@@ -89,6 +91,15 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun playbackSettingsStore(dataStore: DataStore<Preferences>): PlaybackSettingsStore =
+        PlaybackSettingsStore(dataStore)
+
+    @Provides
+    @Singleton
+    fun playbackGate(): dev.teyd.justintv.core.player.PlaybackGate = dev.teyd.justintv.core.player.PlaybackGate()
+
+    @Provides
+    @Singleton
     fun playerFactory(
         @ApplicationContext context: Context,
         httpClient: OkHttpClient,
@@ -108,7 +119,11 @@ object AppModule {
 
     /** Not a singleton: each chat screen gets its own session and connection state. */
     @Provides
-    fun chatSession(irc: TwitchIrcClient, emotes: EmoteRepository): ChatSession = ChatSession(irc, emotes)
+    fun chatSession(
+        irc: TwitchIrcClient,
+        emotes: EmoteRepository,
+        httpClient: OkHttpClient,
+    ): ChatSession = ChatSession(irc, emotes, RecentMessages(httpClient))
 
     /** Shares the connection pool and dispatcher with [base] but gives up quickly. */
     private fun probeClient(base: OkHttpClient, callTimeoutSeconds: Long): OkHttpClient =

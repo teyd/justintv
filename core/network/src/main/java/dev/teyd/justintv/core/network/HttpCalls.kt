@@ -13,7 +13,7 @@ import okhttp3.Response
  * cancelled. That second part matters: the ad-free resolver probes several proxies at once and
  * must be able to abandon the losers immediately instead of waiting for their timeouts.
  */
-internal suspend fun Call.awaitResponse(): Response = suspendCancellableCoroutine { continuation ->
+suspend fun Call.awaitResponse(): Response = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }
     enqueue(
         object : Callback {
