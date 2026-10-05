@@ -1,10 +1,9 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
-    namespace = "dev.teyd.justintv.core.network"
+    namespace = "dev.teyd.justintv.core.model"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -24,12 +23,6 @@ kotlin {
 }
 
 dependencies {
-    api(project(":core:model"))
-    api(libs.okhttp)
-    api(libs.kotlinx.serialization.json)
-    api(libs.kotlinx.coroutines.android)
-
     testImplementation(libs.junit)
     testImplementation(libs.truth)
-    testImplementation(libs.kotlinx.coroutines.test)
 }
