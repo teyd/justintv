@@ -1,33 +1,9 @@
 plugins {
-    alias(libs.plugins.android.library)
+    id("justintv.android.library")
     alias(libs.plugins.kotlin.serialization)
-}
-
-android {
-    namespace = "dev.teyd.justintv.core.chat"
-    compileSdk = libs.versions.compileSdk.get().toInt()
-
-    defaultConfig {
-        minSdk = libs.versions.minSdk.get().toInt()
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-    }
 }
 
 dependencies {
     api(project(":core:model"))
     api(project(":core:network"))
-
-    testImplementation(libs.junit)
-    testImplementation(libs.truth)
-    testImplementation(libs.kotlinx.coroutines.test)
 }
