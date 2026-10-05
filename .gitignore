@@ -33,3 +33,6 @@ keystore.properties
 .env
 .env.*
 !.env.schema
+
+# Research notes stay local.
+docs/
