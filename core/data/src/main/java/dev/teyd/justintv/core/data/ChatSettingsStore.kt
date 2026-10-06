@@ -27,8 +27,8 @@ enum class ChatTimeFormat {
 }
 
 /**
- * Chat preferences: recent-message history, which third-party emote providers are used, and
- * how names and text draw, and whether each line shows the time it was sent.
+ * Chat preferences: recent-message history, which third-party emote and badge providers are
+ * used, how names and text draw, and whether each line shows the time it was sent.
  *
  * Switches default to on, except timestamps; the limit only applies while [recentMessages] is on.
  */
@@ -45,6 +45,11 @@ class ChatSettingsStore(
     private val chatTextSizeKey = stringPreferencesKey("chat_text_size")
     private val showTimestampsKey = booleanPreferencesKey("chat_show_timestamps")
     private val timeFormatKey = stringPreferencesKey("chat_time_format")
+    private val twitchBadgesKey = booleanPreferencesKey("chat_twitch_badges")
+    private val chatterinoBadgesKey = booleanPreferencesKey("chat_chatterino_badges")
+    private val sevenTvBadgesKey = booleanPreferencesKey("chat_7tv_badges")
+    private val ffzBadgesKey = booleanPreferencesKey("chat_ffz_badges")
+    private val bttvBadgesKey = booleanPreferencesKey("chat_bttv_badges")
 
     /** On by default: chat starts with the last messages instead of empty. */
     val recentMessages: Flow<Boolean> = dataStore.data.map { it[recentMessagesKey] != false }
@@ -77,6 +82,17 @@ class ChatSettingsStore(
     /** System by default, so a fresh install follows the device clock. */
     val timeFormat: Flow<ChatTimeFormat> =
         dataStore.data.map { chatTimeFormatOf(it[timeFormatKey]) }
+
+    /** Twitch badges need a signed-in token; with none, chat simply shows no badges. */
+    val twitchBadges: Flow<Boolean> = dataStore.data.map { it[twitchBadgesKey] != false }
+
+    val chatterinoBadges: Flow<Boolean> = dataStore.data.map { it[chatterinoBadgesKey] != false }
+
+    val sevenTvBadges: Flow<Boolean> = dataStore.data.map { it[sevenTvBadgesKey] != false }
+
+    val ffzBadges: Flow<Boolean> = dataStore.data.map { it[ffzBadgesKey] != false }
+
+    val bttvBadges: Flow<Boolean> = dataStore.data.map { it[bttvBadgesKey] != false }
 
     suspend fun setRecentMessages(enabled: Boolean) {
         dataStore.edit { it[recentMessagesKey] = enabled }
@@ -118,6 +134,26 @@ class ChatSettingsStore(
 
     suspend fun setTimeFormat(format: ChatTimeFormat) {
         dataStore.edit { it[timeFormatKey] = format.name }
+    }
+
+    suspend fun setTwitchBadges(enabled: Boolean) {
+        dataStore.edit { it[twitchBadgesKey] = enabled }
+    }
+
+    suspend fun setChatterinoBadges(enabled: Boolean) {
+        dataStore.edit { it[chatterinoBadgesKey] = enabled }
+    }
+
+    suspend fun setSevenTvBadges(enabled: Boolean) {
+        dataStore.edit { it[sevenTvBadgesKey] = enabled }
+    }
+
+    suspend fun setFfzBadges(enabled: Boolean) {
+        dataStore.edit { it[ffzBadgesKey] = enabled }
+    }
+
+    suspend fun setBttvBadges(enabled: Boolean) {
+        dataStore.edit { it[bttvBadgesKey] = enabled }
     }
 
     companion object {

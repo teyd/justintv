@@ -18,6 +18,17 @@ sealed interface ChatSegment {
     ) : ChatSegment
 }
 
+/** Where a chat badge comes from. Declaration order is the order chat draws them in. */
+enum class ChatBadgeSource { Twitch, Chatterino, Ffz, Bttv, SevenTv }
+
+/** One badge drawn in front of a chatter's name. */
+data class ChatBadge(
+    val source: ChatBadgeSource,
+    val url: String,
+    /** Read by screen readers and shown as a tooltip by chat clients that have one. */
+    val title: String,
+)
+
 /** One chat line. Only what the UI draws: who said it and what, with emotes resolved. */
 data class ChatMessage(
     val id: String,
@@ -34,4 +45,5 @@ data class ChatMessage(
      * `tmi-sent-ts` tag. Null when the source did not carry it; the UI then shows no time.
      */
     val timestampMs: Long? = null,
+    val badges: List<ChatBadge> = emptyList(),
 )

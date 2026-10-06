@@ -1,6 +1,8 @@
 package dev.teyd.justintv.core.chat
 
 import com.google.common.truth.Truth.assertThat
+import dev.teyd.justintv.core.model.ChatBadge
+import dev.teyd.justintv.core.model.ChatBadgeSource
 import dev.teyd.justintv.core.model.ChatSegment
 import org.junit.Test
 
@@ -187,5 +189,69 @@ class ChatMessageParserTest {
         assertThat(ranges.map { it.id to it.start }).containsExactly("25" to 0, "1902" to 6, "25" to 12).inOrder()
         assertThat(ChatMessageParser.parseEmoteTag(null)).isEmpty()
         assertThat(ChatMessageParser.parseEmoteTag("")).isEmpty()
+    }
+
+    private val badgeIndex =
+        BadgeIndex(
+            sets =
+                mapOf(
+                    BadgeIndex.key("moderator", "1") to
+                        ChatBadge(ChatBadgeSource.Twitch, "https://cdn/twitch/mod", "Moderator"),
+                    BadgeIndex.key("subscriber", "12") to
+                        ChatBadge(ChatBadgeSource.Twitch, "https://cdn/twitch/sub", "12-Month Subscriber"),
+                ),
+            users = mapOf("42" to listOf(ChatBadge(ChatBadgeSource.Ffz, "https://cdn/ffz/supporter", "FFZ Supporter"))),
+            sevenTv = false,
+        )
+
+    @Test
+    fun `twitch badges resolve from the badges tag in tag order`() {
+        val message =
+            ChatMessageParser.parse(
+                privmsg("hi", tags = "display-name=V;id=m7;badges=moderator/1,subscriber/12"),
+                index,
+                badgeIndex,
+            )!!
+
+        assertThat(message.badges.map { it.title })
+            .containsExactly("Moderator", "12-Month Subscriber")
+            .inOrder()
+        assertThat(message.badges.map { it.source }.distinct()).containsExactly(ChatBadgeSource.Twitch)
+    }
+
+    @Test
+    fun `third party badges resolve from the user id and follow the twitch ones`() {
+        val message =
+            ChatMessageParser.parse(
+                privmsg("hi", tags = "display-name=V;id=m8;badges=moderator/1;user-id=42"),
+                index,
+                badgeIndex,
+            )!!
+
+        assertThat(message.badges.map { it.source })
+            .containsExactly(ChatBadgeSource.Twitch, ChatBadgeSource.Ffz)
+            .inOrder()
+    }
+
+    @Test
+    fun `unknown badge sets and versions are dropped`() {
+        val message =
+            ChatMessageParser.parse(
+                privmsg("hi", tags = "display-name=V;id=m9;badges=subscriber/99,notreal/1"),
+                index,
+                badgeIndex,
+            )!!
+
+        assertThat(message.badges).isEmpty()
+    }
+
+    @Test
+    fun `parses the badges tag`() {
+        assertThat(ChatMessageParser.parseBadgeTag("moderator/1,subscriber/12"))
+            .containsExactly(TwitchBadgeId("moderator", "1"), TwitchBadgeId("subscriber", "12"))
+            .inOrder()
+        assertThat(ChatMessageParser.parseBadgeTag(null)).isEmpty()
+        assertThat(ChatMessageParser.parseBadgeTag("")).isEmpty()
+        assertThat(ChatMessageParser.parseBadgeTag("garbage,subscriber/")).isEmpty()
     }
 }

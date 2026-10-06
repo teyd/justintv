@@ -2,9 +2,13 @@ package dev.teyd.justintv.core.chat
 
 import dev.teyd.justintv.core.model.ChatSegment
 import dev.teyd.justintv.core.network.GqlClient
+import dev.teyd.justintv.core.network.JsonPoster
 import dev.teyd.justintv.core.network.OkHttpTextFetcher
 import dev.teyd.justintv.core.network.TwitchDirectoryApi
 import dev.teyd.justintv.core.network.TwitchHttpClient
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -31,9 +35,24 @@ class LiveChatSmokeTest {
                     listOf(SevenTvProvider(fetcher), BttvProvider(fetcher), FfzProvider(fetcher)),
                 )
             val channel = TwitchDirectoryApi(GqlClient(base)).topStreams(emptySet()).first().login
-            val session = ChatSession(TwitchIrcClient(base), repository, RecentMessages(base))
+            val session =
+                ChatSession(
+                    irc = TwitchIrcClient(base),
+                    emoteRepository = repository,
+                    badgeRepository = BadgeRepository(emptyList(), enabledSources = flowOf(emptySet())),
+                    sevenTvBadges = SevenTvBadges(JsonPoster { _, _ -> """{"data":{"users":{}}}""" }),
+                    recent = RecentMessages(base),
+                )
 
-            val messages = withTimeout(60_000) { session.messages(channel).take(80).toList() }
+            val messages =
+                withTimeout(60_000) {
+                    session
+                        .messages(channel)
+                        .filterIsInstance<ChatEvent.New>()
+                        .map { it.message }
+                        .take(80)
+                        .toList()
+                }
 
             val emotes = messages.flatMap { it.segments }.filterIsInstance<ChatSegment.Emote>()
             val hosts = emotes.map { it.url.substringAfter("://").substringBefore('/') }.groupingBy { it }.eachCount()

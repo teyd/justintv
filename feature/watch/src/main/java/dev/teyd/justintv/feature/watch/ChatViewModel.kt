@@ -3,6 +3,7 @@ package dev.teyd.justintv.feature.watch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.teyd.justintv.core.chat.ChatEvent
 import dev.teyd.justintv.core.chat.ChatSendException
 import dev.teyd.justintv.core.chat.ChatSession
 import dev.teyd.justintv.core.chat.ChatStatus
@@ -11,15 +12,18 @@ import dev.teyd.justintv.core.chat.EmoteSource
 import dev.teyd.justintv.core.data.ChatSettingsStore
 import dev.teyd.justintv.core.data.ChatTextSize
 import dev.teyd.justintv.core.data.ChatTimeFormat
+import dev.teyd.justintv.core.model.ChatBadgeSource
 import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.network.AuthState
 import dev.teyd.justintv.core.network.TwitchSession
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -58,7 +62,9 @@ class ChatViewModel
 
         private var login: String = ""
         private var collectJob: Job? = null
-        private val pending = ArrayList<ChatMessage>()
+        private val pending = ArrayList<ChatEvent>()
+        private val allMessages = ArrayList<ChatMessage>()
+        private var badgeSources: Set<ChatBadgeSource> = ChatBadgeSource.entries.toSet()
         private var flushJob: Job? = null
         private var showInput = true
         private var auth: AuthState = AuthState.LoggedOut
@@ -88,13 +94,26 @@ class ChatViewModel
                 }
             }
             viewModelScope.launch {
+                enabledBadgeSources(chatSettings)
+                    .distinctUntilChanged()
+                    .collect { sources ->
+                        badgeSources = sources
+                        publishMessages()
+                        // A source switched on mid-channel has to enter the index to apply.
+                        session.refreshBadges()
+                    }
+            }
+            viewModelScope.launch {
                 twitch.state.collect { next ->
                     val signedIn = next is AuthState.LoggedIn && auth !is AuthState.LoggedIn
                     auth = next
                     publishComposer()
-                    // The first index may have run before the token was restored. Twitch emotes
-                    // need that token; third-party sets are already cached.
-                    if (signedIn) session.refreshEmotes()
+                    // The first emote index may have run before the token was restored. Twitch
+                    // emotes and badges need that token; third-party sets are already cached.
+                    if (signedIn) {
+                        session.refreshEmotes()
+                        session.refreshBadges()
+                    }
                 }
             }
         }
@@ -134,8 +153,8 @@ class ChatViewModel
                             _state.update { it.copy(emotes = enabled) }
                         }
                     }
-                    session.messages(channel).collect { message ->
-                        pending += message
+                    session.messages(channel).collect { event ->
+                        pending += event
                         scheduleFlush()
                     }
                 }
@@ -190,6 +209,7 @@ class ChatViewModel
             flushJob?.cancel()
             flushJob = null
             pending.clear()
+            allMessages.clear()
         }
 
         private fun publishComposer() {
@@ -216,8 +236,43 @@ class ChatViewModel
                     delay(FLUSH_WINDOW_MS)
                     val batch = ArrayList(pending)
                     pending.clear()
-                    _state.update { it.copy(messages = (it.messages + batch).takeLast(MAX_MESSAGES)) }
+                    apply(batch)
                 }
+        }
+
+        /**
+         * Folds one batch into the list. An [ChatEvent.Updated] replaces the line with the same
+         * id; when that line was already dropped, the update is dropped with it.
+         */
+        private fun apply(batch: List<ChatEvent>) {
+            for (event in batch) {
+                when (event) {
+                    is ChatEvent.New -> {
+                        val existing = allMessages.indexOfFirst { it.id == event.message.id }
+                        if (existing >= 0) allMessages[existing] = event.message else allMessages += event.message
+                    }
+
+                    is ChatEvent.Updated -> {
+                        val index = allMessages.indexOfFirst { it.id == event.message.id }
+                        if (index >= 0) allMessages[index] = event.message
+                    }
+                }
+            }
+            if (allMessages.size > MAX_MESSAGES) {
+                allMessages.subList(0, allMessages.size - MAX_MESSAGES).clear()
+            }
+            publishMessages()
+        }
+
+        /** Applies the badge switches to lines already on screen, without re-parsing them. */
+        private fun publishMessages() {
+            _state.update { it.copy(messages = allMessages.map(::visible)) }
+        }
+
+        private fun visible(message: ChatMessage): ChatMessage {
+            if (badgeSources.size == ChatBadgeSource.entries.size) return message
+            if (message.badges.none { it.source !in badgeSources }) return message
+            return message.copy(badges = message.badges.filter { it.source in badgeSources })
         }
 
         companion object {
@@ -225,5 +280,23 @@ class ChatViewModel
 
             /** Older messages are dropped; nobody scrolls back through thousands of lines. */
             const val MAX_MESSAGES = 250
+        }
+    }
+
+/** The five badge switches, for filtering lines and rebuilding the index. */
+private fun enabledBadgeSources(settings: ChatSettingsStore): Flow<Set<ChatBadgeSource>> =
+    combine(
+        settings.twitchBadges,
+        settings.chatterinoBadges,
+        settings.sevenTvBadges,
+        settings.ffzBadges,
+        settings.bttvBadges,
+    ) { twitch, chatterino, sevenTv, ffz, bttv ->
+        buildSet {
+            if (twitch) add(ChatBadgeSource.Twitch)
+            if (chatterino) add(ChatBadgeSource.Chatterino)
+            if (sevenTv) add(ChatBadgeSource.SevenTv)
+            if (ffz) add(ChatBadgeSource.Ffz)
+            if (bttv) add(ChatBadgeSource.Bttv)
         }
     }

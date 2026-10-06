@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.teyd.justintv.core.data.ChatTextSize
 import dev.teyd.justintv.core.data.ChatTimeFormat
 import dev.teyd.justintv.core.data.ThemeMode
+import dev.teyd.justintv.core.model.ChatBadgeSource
 import dev.teyd.justintv.core.network.AuthState
 
 private enum class SettingsPage(
@@ -152,6 +153,7 @@ fun SettingsScreen(
                     onChatTextSize = viewModel::setChatTextSize,
                     onShowTimestamps = viewModel::setShowTimestamps,
                     onTimeFormat = viewModel::setTimeFormat,
+                    onBadge = viewModel::setBadgeSource,
                     modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
                     contentPadding = padding,
                 )
@@ -436,6 +438,7 @@ private fun ChatPage(
     onChatTextSize: (ChatTextSize) -> Unit,
     onShowTimestamps: (Boolean) -> Unit,
     onTimeFormat: (ChatTimeFormat) -> Unit,
+    onBadge: (ChatBadgeSource, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: androidx.compose.foundation.layout.PaddingValues,
 ) {
@@ -523,8 +526,27 @@ private fun ChatPage(
                 trailingContent = { Switch(checked = state.ffz, onCheckedChange = onFfz) },
             )
         }
+        item { SectionHeader("Badges") }
+        items(BADGE_ROWS) { (source, label) ->
+            ListItem(
+                headlineContent = { Text(label) },
+                trailingContent = {
+                    Switch(checked = source in state.badges, onCheckedChange = { onBadge(source, it) })
+                },
+            )
+        }
     }
 }
+
+/** Independently configurable badge sources; none requires signing in. */
+private val BADGE_ROWS =
+    listOf(
+        ChatBadgeSource.Twitch to "Twitch badges",
+        ChatBadgeSource.Chatterino to "Chatterino badges",
+        ChatBadgeSource.SevenTv to "7TV badges",
+        ChatBadgeSource.Ffz to "FFZ badges",
+        ChatBadgeSource.Bttv to "BTTV badges",
+    )
 
 @Composable
 private fun AppearancePage(

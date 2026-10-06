@@ -13,6 +13,7 @@ import dev.teyd.justintv.core.data.ChatTextSize
 import dev.teyd.justintv.core.data.ChatTimeFormat
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import dev.teyd.justintv.core.data.ThemeMode
+import dev.teyd.justintv.core.model.ChatBadgeSource
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,7 @@ data class SettingsUiState(
     val sevenTv: Boolean = true,
     val bttv: Boolean = true,
     val ffz: Boolean = true,
+    val badges: Set<ChatBadgeSource> = ChatBadgeSource.entries.toSet(),
     val showChatInput: Boolean = true,
     val coloredUsernames: Boolean = true,
     val chatTextSize: ChatTextSize = ChatTextSize.Default,
@@ -83,28 +85,44 @@ class SettingsViewModel
                         chatSettings.bttv,
                         chatSettings.ffz,
                     ) { recent, limit, seven, bttv, ffz ->
-                        ChatSlice(recent, limit, seven, bttv, ffz, dynamic = false)
+                        ChatSlice(recent, limit, seven, bttv, ffz)
+                    },
+                    combine(
+                        chatSettings.twitchBadges,
+                        chatSettings.chatterinoBadges,
+                        chatSettings.sevenTvBadges,
+                        chatSettings.ffzBadges,
+                        chatSettings.bttvBadges,
+                    ) { twitch, chatterino, sevenTv, ffz, bttv ->
+                        buildSet {
+                            if (twitch) add(ChatBadgeSource.Twitch)
+                            if (chatterino) add(ChatBadgeSource.Chatterino)
+                            if (sevenTv) add(ChatBadgeSource.SevenTv)
+                            if (ffz) add(ChatBadgeSource.Ffz)
+                            if (bttv) add(ChatBadgeSource.Bttv)
+                        }
                     },
                     appearanceSettings.dynamicColor,
-                ) { playback, chat, dynamic ->
-                    playback to chat.copy(dynamic = dynamic)
-                }.collect { (playback, chat) ->
+                ) { playback, chat, badges, dynamic ->
+                    SettingsSlice(playback, chat, badges, dynamic)
+                }.collect { slice ->
                     _state.update { current ->
                         current.copy(
-                            backgroundPlayback = playback.background,
-                            pictureInPicture = playback.pip,
-                            adBlockEnabled = playback.adBlock,
-                            themeMode = playback.theme,
+                            backgroundPlayback = slice.playback.background,
+                            pictureInPicture = slice.playback.pip,
+                            adBlockEnabled = slice.playback.adBlock,
+                            themeMode = slice.playback.theme,
                             proxyStatuses =
                                 current.proxyStatuses.map {
-                                    it.copy(enabled = it.proxy.host !in playback.disabled)
+                                    it.copy(enabled = it.proxy.host !in slice.playback.disabled)
                                 },
-                            recentMessages = chat.recent,
-                            recentMessageLimit = chat.limit,
-                            sevenTv = chat.seven,
-                            bttv = chat.bttv,
-                            ffz = chat.ffz,
-                            dynamicColor = chat.dynamic,
+                            recentMessages = slice.chat.recent,
+                            recentMessageLimit = slice.chat.limit,
+                            sevenTv = slice.chat.seven,
+                            bttv = slice.chat.bttv,
+                            ffz = slice.chat.ffz,
+                            badges = slice.badges,
+                            dynamicColor = slice.dynamic,
                         )
                     }
                 }
@@ -206,6 +224,21 @@ class SettingsViewModel
             viewModelScope.launch { chatSettings.setTimeFormat(format) }
         }
 
+        fun setBadgeSource(
+            source: ChatBadgeSource,
+            enabled: Boolean,
+        ) {
+            viewModelScope.launch {
+                when (source) {
+                    ChatBadgeSource.Twitch -> chatSettings.setTwitchBadges(enabled)
+                    ChatBadgeSource.Chatterino -> chatSettings.setChatterinoBadges(enabled)
+                    ChatBadgeSource.SevenTv -> chatSettings.setSevenTvBadges(enabled)
+                    ChatBadgeSource.Ffz -> chatSettings.setFfzBadges(enabled)
+                    ChatBadgeSource.Bttv -> chatSettings.setBttvBadges(enabled)
+                }
+            }
+        }
+
         fun setThemeMode(mode: ThemeMode) {
             viewModelScope.launch { appearanceSettings.setThemeMode(mode) }
         }
@@ -266,6 +299,12 @@ private data class ChatSlice(
     val seven: Boolean,
     val bttv: Boolean,
     val ffz: Boolean,
+)
+
+private data class SettingsSlice(
+    val playback: PlaybackSlice,
+    val chat: ChatSlice,
+    val badges: Set<ChatBadgeSource>,
     val dynamic: Boolean,
 )
 

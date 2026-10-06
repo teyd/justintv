@@ -14,14 +14,20 @@ import dev.teyd.justintv.core.adfree.DefaultProxies
 import dev.teyd.justintv.core.adfree.PlaylistResolver
 import dev.teyd.justintv.core.adfree.PlaylistVerifier
 import dev.teyd.justintv.core.adfree.ProxyHealthChecker
+import dev.teyd.justintv.core.chat.BadgeRepository
+import dev.teyd.justintv.core.chat.BttvBadgeProvider
 import dev.teyd.justintv.core.chat.BttvProvider
 import dev.teyd.justintv.core.chat.ChatHistorySettings
 import dev.teyd.justintv.core.chat.ChatSession
+import dev.teyd.justintv.core.chat.ChatterinoBadgeProvider
 import dev.teyd.justintv.core.chat.EmoteRepository
 import dev.teyd.justintv.core.chat.EmoteSource
+import dev.teyd.justintv.core.chat.FfzBadgeProvider
 import dev.teyd.justintv.core.chat.FfzProvider
 import dev.teyd.justintv.core.chat.RecentMessages
+import dev.teyd.justintv.core.chat.SevenTvBadges
 import dev.teyd.justintv.core.chat.SevenTvProvider
+import dev.teyd.justintv.core.chat.TwitchBadgeProvider
 import dev.teyd.justintv.core.chat.TwitchEmoteProvider
 import dev.teyd.justintv.core.chat.TwitchIrcClient
 import dev.teyd.justintv.core.data.AdBlockSettingsStore
@@ -31,9 +37,12 @@ import dev.teyd.justintv.core.data.KeystoreTokenVault
 import dev.teyd.justintv.core.data.LanguageFilterStore
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import dev.teyd.justintv.core.data.SessionStore
+import dev.teyd.justintv.core.model.ChatBadgeSource
 import dev.teyd.justintv.core.network.ActiveNetworkDns
 import dev.teyd.justintv.core.network.DirectorySource
 import dev.teyd.justintv.core.network.GqlClient
+import dev.teyd.justintv.core.network.JsonPoster
+import dev.teyd.justintv.core.network.OkHttpJsonPoster
 import dev.teyd.justintv.core.network.OkHttpTextFetcher
 import dev.teyd.justintv.core.network.TokenVault
 import dev.teyd.justintv.core.network.TwitchDirectoryApi
@@ -56,7 +65,7 @@ object AppModule {
     private const val PROBE_CONNECT_TIMEOUT_SECONDS = 3L
     private const val VERIFY_CALL_TIMEOUT_SECONDS = 6L
     private const val PING_CALL_TIMEOUT_SECONDS = 4L
-    private const val EMOTE_CALL_TIMEOUT_SECONDS = 10L
+    private const val PROVIDER_CALL_TIMEOUT_SECONDS = 10L
     private const val MAX_REQUESTS_PER_HOST = 16
     private const val MAX_REQUESTS = 64
 
@@ -177,7 +186,7 @@ object AppModule {
         chatSettings: ChatSettingsStore,
         session: TwitchSession,
     ): EmoteRepository {
-        val probe = probeClient(httpClient, EMOTE_CALL_TIMEOUT_SECONDS)
+        val probe = probeClient(httpClient, PROVIDER_CALL_TIMEOUT_SECONDS)
         val fetcher = OkHttpTextFetcher(probe)
         val helix = TwitchIdentityApi(probe)
         return EmoteRepository(
@@ -204,17 +213,71 @@ object AppModule {
         )
     }
 
+    /** Posts GraphQL bodies for badge lookups, with a short timeout so a hang is bounded. */
+    @Provides
+    @Singleton
+    fun jsonPoster(httpClient: OkHttpClient): JsonPoster = OkHttpJsonPoster(probeClient(httpClient, PROVIDER_CALL_TIMEOUT_SECONDS))
+
+    /**
+     * One 7TV badge cache for the whole app. 7TV has no bulk users-to-badge list, so each
+     * chatter is looked up once and remembered, negatives included.
+     */
+    @Provides
+    @Singleton
+    fun sevenTvBadges(poster: JsonPoster): SevenTvBadges = SevenTvBadges(poster)
+
+    /** One repository for the whole app, so global badge sets are downloaded once per toggle set. */
+    @Provides
+    @Singleton
+    fun badgeRepository(
+        httpClient: OkHttpClient,
+        chatSettings: ChatSettingsStore,
+    ): BadgeRepository {
+        val probe = probeClient(httpClient, PROVIDER_CALL_TIMEOUT_SECONDS)
+        val fetcher = OkHttpTextFetcher(probe)
+        val gql = GqlClient(probe)
+        return BadgeRepository(
+            providers =
+                listOf(
+                    TwitchBadgeProvider(gql::post),
+                    ChatterinoBadgeProvider(fetcher),
+                    FfzBadgeProvider(fetcher),
+                    BttvBadgeProvider(fetcher),
+                ),
+            enabledSources =
+                combine(
+                    chatSettings.twitchBadges,
+                    chatSettings.chatterinoBadges,
+                    chatSettings.sevenTvBadges,
+                    chatSettings.ffzBadges,
+                    chatSettings.bttvBadges,
+                ) { twitch, chatterino, sevenTv, ffz, bttv ->
+                    buildSet {
+                        if (twitch) add(ChatBadgeSource.Twitch)
+                        if (chatterino) add(ChatBadgeSource.Chatterino)
+                        if (sevenTv) add(ChatBadgeSource.SevenTv)
+                        if (ffz) add(ChatBadgeSource.Ffz)
+                        if (bttv) add(ChatBadgeSource.Bttv)
+                    }
+                },
+        )
+    }
+
     /** Not a singleton: each chat screen gets its own session and connection state. */
     @Provides
     fun chatSession(
         irc: TwitchIrcClient,
         emotes: EmoteRepository,
+        badges: BadgeRepository,
+        sevenTvBadges: SevenTvBadges,
         httpClient: OkHttpClient,
         chatSettings: ChatSettingsStore,
     ): ChatSession =
         ChatSession(
             irc = irc,
             emoteRepository = emotes,
+            badgeRepository = badges,
+            sevenTvBadges = sevenTvBadges,
             recent = RecentMessages(httpClient),
             historySettings = {
                 ChatHistorySettings(

@@ -253,11 +253,32 @@ internal fun buildChatText(
 ): BuiltChat {
     val inline = HashMap<String, InlineTextContent>()
     val emoteHeight = textSize.emoteSp
+    // A touch smaller than emotes, and it follows the text-size setting like they do.
+    val badgeSize = textSize.emoteSp - 6
     val text =
         buildAnnotatedString {
             if (timestamp != null) {
                 withStyle(SpanStyle(color = timestampColor)) { append(timestamp) }
                 append(" ")
+            }
+            message.badges.forEachIndexed { index, badge ->
+                val id = "b$index"
+                appendInlineContent(id, badge.title)
+                inline[id] =
+                    InlineTextContent(
+                        Placeholder(
+                            width = badgeSize.sp,
+                            height = badgeSize.sp,
+                            placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
+                        ),
+                    ) {
+                        AsyncImage(
+                            model = badge.url,
+                            contentDescription = badge.title,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize().padding(end = 2.dp),
+                        )
+                    }
             }
             withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = nameColor)) { append(message.user) }
             append(if (message.isAction) " " else ": ")

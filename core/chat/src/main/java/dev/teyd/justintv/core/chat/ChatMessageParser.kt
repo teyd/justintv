@@ -1,5 +1,6 @@
 package dev.teyd.justintv.core.chat
 
+import dev.teyd.justintv.core.model.ChatBadge
 import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.model.ChatSegment
 
@@ -10,11 +11,18 @@ data class TwitchEmoteRange(
     val end: Int,
 )
 
+/** One entry of the IRC `badges` tag: `moderator/1` is the set `moderator` version `1`. */
+data class TwitchBadgeId(
+    val setId: String,
+    val version: String,
+)
+
 /**
- * Turns IRC messages into [ChatMessage]s with emotes resolved.
+ * Turns IRC messages into [ChatMessage]s with emotes and badges resolved.
  *
  * Twitch native emotes come from the `emotes` tag as code point ranges. Third-party emotes
- * (7TV, BTTV, FFZ) are matched by whole-word name in whatever text is left.
+ * (7TV, BTTV, FFZ) are matched by whole-word name in whatever text is left. Twitch badges come
+ * from the `badges` tag; the rest are looked up by the chatter's `user-id`.
  */
 object ChatMessageParser {
     private const val ACTION_PREFIX = "\u0001ACTION "
@@ -24,6 +32,7 @@ object ChatMessageParser {
     fun parse(
         irc: IrcMessage,
         index: EmoteIndex,
+        badges: BadgeIndex = BadgeIndex.EMPTY,
     ): ChatMessage? {
         if (irc.command != "PRIVMSG") return null
         var text = irc.trailing ?: return null
@@ -45,7 +54,31 @@ object ChatMessageParser {
             segments = tokenize(text, ranges, index),
             isAction = isAction,
             timestampMs = irc.tags["tmi-sent-ts"]?.toLongOrNull(),
+            badges = badgesOf(irc, badges),
         )
+    }
+
+    /** Twitch badges first, in tag order, then every third-party badge for the chatter. */
+    private fun badgesOf(
+        irc: IrcMessage,
+        index: BadgeIndex,
+    ): List<ChatBadge> {
+        val found = ArrayList<ChatBadge>()
+        for (badge in parseBadgeTag(irc.tags["badges"])) {
+            index.twitch(badge.setId, badge.version)?.let(found::add)
+        }
+        irc.tags["user-id"]?.takeIf { it.isNotBlank() }?.let { found += index.user(it) }
+        return found
+    }
+
+    /** `moderator/1,subscriber/12` becomes two entries. Unknown set/version pairs are dropped. */
+    fun parseBadgeTag(tag: String?): List<TwitchBadgeId> {
+        if (tag.isNullOrBlank()) return emptyList()
+        return tag.split(',').mapNotNull { entry ->
+            val setId = entry.substringBefore('/', "")
+            val version = entry.substringAfter('/', "")
+            if (setId.isBlank() || version.isBlank()) null else TwitchBadgeId(setId, version)
+        }
     }
 
     /** `25:0-4,12-16/1902:6-10` becomes three ranges, sorted by position. */
