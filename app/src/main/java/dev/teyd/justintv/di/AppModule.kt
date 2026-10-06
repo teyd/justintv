@@ -39,9 +39,11 @@ import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import dev.teyd.justintv.core.data.SessionStore
 import dev.teyd.justintv.core.model.ChatBadgeSource
 import dev.teyd.justintv.core.network.ActiveNetworkDns
+import dev.teyd.justintv.core.network.CompositeDirectorySource
 import dev.teyd.justintv.core.network.DirectorySource
 import dev.teyd.justintv.core.network.GqlClient
 import dev.teyd.justintv.core.network.HelixClient
+import dev.teyd.justintv.core.network.HelixDirectoryApi
 import dev.teyd.justintv.core.network.JsonPoster
 import dev.teyd.justintv.core.network.OkHttpJsonPoster
 import dev.teyd.justintv.core.network.OkHttpTextFetcher
@@ -112,7 +114,15 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun directorySource(httpClient: OkHttpClient): DirectorySource = TwitchDirectoryApi(GqlClient(httpClient))
+    fun directorySource(
+        httpClient: OkHttpClient,
+        session: TwitchSession,
+    ): DirectorySource =
+        CompositeDirectorySource(
+            gql = TwitchDirectoryApi(GqlClient(httpClient)),
+            helix = HelixDirectoryApi(httpClient, session),
+            auth = session,
+        )
 
     @Provides
     @Singleton

@@ -48,7 +48,7 @@ class TwitchSession(
     private val vault: TokenVault,
     private val clientId: String,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-) {
+) : HelixAuthorizer {
     private val _state = MutableStateFlow<AuthState>(AuthState.LoggedOut)
     val state: StateFlow<AuthState> = _state.asStateFlow()
 
@@ -129,6 +129,20 @@ class TwitchSession(
         } catch (_: UnauthorizedException) {
             val refreshed = refreshLocked() ?: throw IdentityException("Sign-in expired")
             helix.followedStreams(clientId, refreshed, userId)
+        }
+    }
+
+    override val isSignedIn: Boolean get() = _state.value is AuthState.LoggedIn && clientId.isNotBlank()
+
+    /** Helix call with the user's token. Refreshes the token once on a 401, then retries. */
+    override suspend fun <T> authorized(block: suspend (HelixCredentials) -> T): T {
+        val token = freshAccessToken() ?: throw IdentityException("Not signed in")
+        val userId = stored?.userId ?: throw IdentityException("Not signed in")
+        return try {
+            block(HelixCredentials(clientId, token, userId))
+        } catch (_: UnauthorizedException) {
+            val refreshed = refreshLocked() ?: throw IdentityException("Sign-in expired")
+            block(HelixCredentials(clientId, refreshed, userId))
         }
     }
 

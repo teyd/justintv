@@ -255,6 +255,22 @@ interface DirectorySource {
 
     suspend fun topGames(): List<Game>
 
+    /**
+     * One page of [topStreams]. [after] is the cursor from the previous page. Sources without
+     * pagination (anonymous GraphQL) return everything as a single page with no cursor.
+     */
+    suspend fun topStreamsPage(
+        languages: Set<String>,
+        after: String? = null,
+    ): Page<LiveStream> = Page(topStreams(languages))
+
+    /** One page of [gameStreams]. See [topStreamsPage]. */
+    suspend fun gameStreamsPage(
+        gameName: String,
+        languages: Set<String>,
+        after: String? = null,
+    ): Page<LiveStream> = Page(gameStreams(gameName, languages))
+
     /** Current viewers and start time, or null when the channel is not live. */
     suspend fun channelLive(login: String): ChannelLive?
 
