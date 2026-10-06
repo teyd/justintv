@@ -30,13 +30,8 @@ import dev.teyd.justintv.core.chat.SevenTvProvider
 import dev.teyd.justintv.core.chat.TwitchBadgeProvider
 import dev.teyd.justintv.core.chat.TwitchEmoteProvider
 import dev.teyd.justintv.core.chat.TwitchIrcClient
-import dev.teyd.justintv.core.data.AdBlockSettingsStore
-import dev.teyd.justintv.core.data.AppearanceSettingsStore
 import dev.teyd.justintv.core.data.ChatSettingsStore
 import dev.teyd.justintv.core.data.KeystoreTokenVault
-import dev.teyd.justintv.core.data.LanguageFilterStore
-import dev.teyd.justintv.core.data.PlaybackSettingsStore
-import dev.teyd.justintv.core.data.SessionStore
 import dev.teyd.justintv.core.model.ChatBadgeSource
 import dev.teyd.justintv.core.network.ActiveNetworkDns
 import dev.teyd.justintv.core.network.DirectorySource
@@ -121,14 +116,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun languageFilterStore(dataStore: DataStore<Preferences>): LanguageFilterStore = LanguageFilterStore(dataStore)
-
-    @Provides
-    @Singleton
-    fun sessionStore(dataStore: DataStore<Preferences>): SessionStore = SessionStore(dataStore)
-
-    @Provides
-    @Singleton
     fun tokenVault(
         @ApplicationContext context: Context,
     ): TokenVault = KeystoreTokenVault(context)
@@ -144,28 +131,6 @@ object AppModule {
             vault = vault,
             clientId = dev.teyd.justintv.TwitchConfig.clientId,
         )
-
-    @Provides
-    @Singleton
-    fun playbackSettingsStore(dataStore: DataStore<Preferences>): PlaybackSettingsStore = PlaybackSettingsStore(dataStore)
-
-    @Provides
-    @Singleton
-    fun appearanceSettingsStore(dataStore: DataStore<Preferences>): AppearanceSettingsStore = AppearanceSettingsStore(dataStore)
-
-    @Provides
-    @Singleton
-    fun adBlockSettingsStore(dataStore: DataStore<Preferences>): AdBlockSettingsStore = AdBlockSettingsStore(dataStore)
-
-    @Provides
-    @Singleton
-    fun chatSettingsStore(dataStore: DataStore<Preferences>): ChatSettingsStore = ChatSettingsStore(dataStore)
-
-    @Provides
-    @Singleton
-    fun playbackGate(): dev.teyd.justintv.core.player.PlaybackGate =
-        dev.teyd.justintv.core.player
-            .PlaybackGate()
 
     @Provides
     @Singleton

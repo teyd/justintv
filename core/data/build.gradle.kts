@@ -1,5 +1,6 @@
 plugins {
     id("justintv.android.library")
+    id("justintv.android.hilt")
 }
 
 dependencies {

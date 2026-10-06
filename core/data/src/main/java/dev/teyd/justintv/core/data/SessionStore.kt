@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Whether the viewer is logged in, and their token.
@@ -14,20 +16,23 @@ import kotlinx.coroutines.flow.map
  * logged out everywhere. The screens already read this, so wiring login in is a matter of
  * calling [save].
  */
-class SessionStore(
-    private val dataStore: DataStore<Preferences>,
-) {
-    private val tokenKey = stringPreferencesKey("access_token")
+@Singleton
+class SessionStore
+    @Inject
+    constructor(
+        private val dataStore: DataStore<Preferences>,
+    ) {
+        private val tokenKey = stringPreferencesKey("access_token")
 
-    val isLoggedIn: Flow<Boolean> = dataStore.data.map { !it[tokenKey].isNullOrBlank() }
+        val isLoggedIn: Flow<Boolean> = dataStore.data.map { !it[tokenKey].isNullOrBlank() }
 
-    val accessToken: Flow<String?> = dataStore.data.map { it[tokenKey]?.takeIf(String::isNotBlank) }
+        val accessToken: Flow<String?> = dataStore.data.map { it[tokenKey]?.takeIf(String::isNotBlank) }
 
-    suspend fun save(accessToken: String) {
-        dataStore.edit { it[tokenKey] = accessToken }
+        suspend fun save(accessToken: String) {
+            dataStore.edit { it[tokenKey] = accessToken }
+        }
+
+        suspend fun clear() {
+            dataStore.edit { it.remove(tokenKey) }
+        }
     }
-
-    suspend fun clear() {
-        dataStore.edit { it.remove(tokenKey) }
-    }
-}
