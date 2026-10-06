@@ -1,15 +1,11 @@
 package dev.teyd.justintv.core.network
 
-import dev.teyd.justintv.core.model.LiveStream
-import dev.teyd.justintv.core.model.twitchImageUrl
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.net.URLEncoder
-import kotlin.coroutines.cancellation.CancellationException
 
 /** A signed-in Twitch user. The token itself never leaves the session store. */
 data class TwitchUser(
@@ -54,10 +50,10 @@ open class IdentityException(
 ) : Exception(message)
 
 /**
- * Twitch identity and Helix calls that carry a user token.
+ * Twitch OAuth: device-code sign-in, token refresh, and token validation.
  *
- * This is not the GraphQL client. Playback tokens stay on [GqlClient], anonymous, and never
- * see what this class sends.
+ * Data calls made with the resulting token live on [HelixClient]. Playback tokens stay on
+ * [GqlClient], anonymous, and never see what this class sends.
  */
 class TwitchIdentityApi(
     private val http: OkHttpClient,
@@ -71,7 +67,7 @@ class TwitchIdentityApi(
         if (response.code != 200) {
             throw IdentityException(errorMessage(response.body) ?: "Twitch refused the sign-in request")
         }
-        val parsed = json.decodeFromString<DeviceCodeBody>(response.body)
+        val parsed = twitchJson.decodeFromString<DeviceCodeBody>(response.body)
         return DeviceCode(
             deviceCode = parsed.deviceCode,
             userCode = parsed.userCode,
@@ -112,22 +108,7 @@ class TwitchIdentityApi(
             if (isRejectedRefresh(response.code, response.body)) throw UnauthorizedException()
             throw IdentityException(errorMessage(response.body) ?: "Could not refresh the sign-in")
         }
-        return json.decodeFromString<TokenBody>(response.body).toGrant()
-    }
-
-    /** Helix GET with the signed-in user's token. 401 throws [UnauthorizedException]. */
-    suspend fun authorizedGet(
-        url: String,
-        clientId: String,
-        accessToken: String,
-    ): String {
-        val response = get(url, bearer = accessToken, clientId = clientId, oauthPrefix = "Bearer")
-        if (response.code == 401) throw UnauthorizedException()
-        if (response.code != 200) {
-            throw IdentityException(errorMessage(response.body) ?: "Could not load emotes")
-        }
-        if (response.body.isBlank()) throw IdentityException("empty response")
-        return response.body
+        return twitchJson.decodeFromString<TokenBody>(response.body).toGrant()
     }
 
     /** Null when the token is rejected. Other failures throw. */
@@ -137,74 +118,10 @@ class TwitchIdentityApi(
         if (response.code != 200) {
             throw IdentityException(errorMessage(response.body) ?: "Could not check the sign-in")
         }
-        val parsed = json.decodeFromString<ValidateBody>(response.body)
+        val parsed = twitchJson.decodeFromString<ValidateBody>(response.body)
         val id = parsed.userId ?: return null
         val login = parsed.login ?: return null
         return TwitchUser(id = id, login = login, displayName = parsed.login)
-    }
-
-    suspend fun currentUser(
-        clientId: String,
-        accessToken: String,
-    ): TwitchUser {
-        val response = get("$HELIX_URL/users", bearer = accessToken, clientId = clientId, oauthPrefix = "Bearer")
-        if (response.code == 401) throw UnauthorizedException()
-        if (response.code != 200) {
-            throw IdentityException(errorMessage(response.body) ?: "Could not load the account")
-        }
-        val user =
-            json.decodeFromString<HelixUsersBody>(response.body).data.firstOrNull()
-                ?: throw IdentityException("Twitch returned no account")
-        return TwitchUser(
-            id = user.id,
-            login = user.login,
-            displayName = user.displayName ?: user.login,
-        )
-    }
-
-    suspend fun followedStreams(
-        clientId: String,
-        accessToken: String,
-        userId: String,
-    ): List<LiveStream> {
-        val url = "$HELIX_URL/streams/followed?user_id=${encode(userId)}&first=100"
-        val response = get(url, bearer = accessToken, clientId = clientId, oauthPrefix = "Bearer")
-        if (response.code == 401) throw UnauthorizedException()
-        if (response.code != 200) {
-            throw IdentityException(errorMessage(response.body) ?: "Could not load followed streams")
-        }
-        val streams = json.decodeFromString<HelixStreamsBody>(response.body).data
-        if (streams.isEmpty()) return emptyList()
-        // A stream object has no picture; one extra call fills the avatars for the whole page.
-        val avatars =
-            try {
-                userAvatars(clientId, accessToken, streams.map { it.userId })
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                emptyMap()
-            }
-        return streams.map { it.toLiveStream(avatarUrl = avatars[it.userId]) }
-    }
-
-    suspend fun userAvatars(
-        clientId: String,
-        accessToken: String,
-        ids: List<String>,
-    ): Map<String, String> {
-        val unique = ids.filter { it.isNotBlank() }.distinct().take(MAX_USER_IDS)
-        if (unique.isEmpty()) return emptyMap()
-        val query = unique.joinToString("&") { "id=${encode(it)}" }
-        val response = get("$HELIX_URL/users?$query", bearer = accessToken, clientId = clientId, oauthPrefix = "Bearer")
-        if (response.code == 401) throw UnauthorizedException()
-        if (response.code != 200) {
-            throw IdentityException(errorMessage(response.body) ?: "Could not load channel pictures")
-        }
-        return json
-            .decodeFromString<HelixUsersBody>(response.body)
-            .data
-            .mapNotNull { user -> user.profileImageUrl?.let { user.id to it } }
-            .toMap()
     }
 
     private suspend fun post(
@@ -257,12 +174,8 @@ class TwitchIdentityApi(
         private const val DEVICE_URL = "https://id.twitch.tv/oauth2/device"
         private const val TOKEN_URL = "https://id.twitch.tv/oauth2/token"
         private const val VALIDATE_URL = "https://id.twitch.tv/oauth2/validate"
-        private const val HELIX_URL = "https://api.twitch.tv/helix"
         private const val ACTIVATE_URL = "https://www.twitch.tv/activate"
         private const val DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
-        private const val MAX_USER_IDS = 100
-
-        private val json = Json { ignoreUnknownKeys = true }
 
         /**
          * True only when Twitch says the refresh token itself is dead. A missing client id, a
@@ -283,7 +196,7 @@ class TwitchIdentityApi(
             body: String,
         ): DevicePoll {
             if (code == 200) {
-                return DevicePoll.Granted(json.decodeFromString<TokenBody>(body).toGrant())
+                return DevicePoll.Granted(twitchJson.decodeFromString<TokenBody>(body).toGrant())
             }
             val message = errorMessage(body).orEmpty()
             return when {
@@ -292,15 +205,6 @@ class TwitchIdentityApi(
                 else -> DevicePoll.Rejected(message.ifBlank { "Sign-in was rejected" })
             }
         }
-
-        private fun errorMessage(body: String): String? =
-            try {
-                json.decodeFromString<ErrorBody>(body).message?.takeIf { it.isNotBlank() }
-            } catch (_: Exception) {
-                null
-            }
-
-        private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8)
     }
 }
 
@@ -328,42 +232,19 @@ private data class ErrorBody(
     val message: String? = null,
 )
 
+internal val twitchJson = Json { ignoreUnknownKeys = true }
+
+internal fun errorMessage(body: String): String? =
+    try {
+        twitchJson.decodeFromString<ErrorBody>(body).message?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    }
+
 @Serializable
 private data class ValidateBody(
     val login: String? = null,
     @SerialName("user_id") val userId: String? = null,
-)
-
-@Serializable
-private data class HelixUsersBody(
-    val data: List<HelixUserBody> = emptyList(),
-)
-
-@Serializable
-private data class HelixUserBody(
-    val id: String,
-    val login: String,
-    @SerialName("display_name") val displayName: String? = null,
-    @SerialName("profile_image_url") val profileImageUrl: String? = null,
-)
-
-@Serializable
-private data class HelixStreamsBody(
-    val data: List<HelixStreamBody> = emptyList(),
-)
-
-@Serializable
-private data class HelixStreamBody(
-    val id: String,
-    @SerialName("user_id") val userId: String = "",
-    @SerialName("user_login") val userLogin: String,
-    @SerialName("user_name") val userName: String? = null,
-    val title: String? = null,
-    @SerialName("viewer_count") val viewerCount: Int = 0,
-    @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
-    @SerialName("game_name") val gameName: String? = null,
-    val language: String? = null,
-    @SerialName("started_at") val startedAt: String? = null,
 )
 
 private fun TokenBody.toGrant() =
@@ -372,18 +253,4 @@ private fun TokenBody.toGrant() =
         refreshToken = refreshToken,
         expiresInSeconds = expiresIn,
         scopes = scope,
-    )
-
-private fun HelixStreamBody.toLiveStream(avatarUrl: String? = null) =
-    LiveStream(
-        id = id,
-        login = userLogin,
-        displayName = userName ?: userLogin,
-        title = title.orEmpty(),
-        viewerCount = viewerCount,
-        previewUrl = twitchImageUrl(thumbnailUrl),
-        avatarUrl = avatarUrl,
-        gameName = gameName,
-        language = language,
-        startedAt = startedAt,
     )

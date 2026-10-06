@@ -44,6 +44,7 @@ sealed interface AuthState {
  */
 class TwitchSession(
     private val api: TwitchIdentityApi,
+    private val helix: HelixClient,
     private val vault: TokenVault,
     private val clientId: String,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
@@ -124,10 +125,10 @@ class TwitchSession(
         val token = freshAccessToken() ?: throw IdentityException("Not signed in")
         val userId = stored?.userId ?: throw IdentityException("Not signed in")
         return try {
-            api.followedStreams(clientId, token, userId)
+            helix.followedStreams(clientId, token, userId)
         } catch (_: UnauthorizedException) {
             val refreshed = refreshLocked() ?: throw IdentityException("Sign-in expired")
-            api.followedStreams(clientId, refreshed, userId)
+            helix.followedStreams(clientId, refreshed, userId)
         }
     }
 
@@ -156,7 +157,7 @@ class TwitchSession(
         if (clientId.isBlank()) return
         try {
             freshAccessToken()
-            val user = api.currentUser(clientId, stored?.accessToken ?: return)
+            val user = helix.currentUser(clientId, stored?.accessToken ?: return)
             saveUser(user, stored?.refreshToken.orEmpty(), stored?.expiresAtEpochMs ?: 0L)
         } catch (_: UnauthorizedException) {
             // refreshLocked deletes the session only when Twitch rejects the refresh token.
@@ -181,7 +182,7 @@ class TwitchSession(
     }
 
     private suspend fun finish(grant: TokenGrant) {
-        val user = api.currentUser(clientId, grant.accessToken)
+        val user = helix.currentUser(clientId, grant.accessToken)
         val expiresAt = System.currentTimeMillis() + grant.expiresInSeconds * 1000L
         saveUser(user, grant.refreshToken, expiresAt, grant.accessToken, grant.scopes)
     }

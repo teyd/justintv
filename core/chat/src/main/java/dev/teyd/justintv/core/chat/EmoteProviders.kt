@@ -267,7 +267,7 @@ object TwitchEmoteParser {
 class TwitchEmoteProvider(
     private val clientId: String,
     private val token: suspend () -> String?,
-    private val fetch: suspend (url: String, clientId: String, accessToken: String) -> String,
+    private val fetch: suspend (url: String, clientId: String, accessToken: String, failureMessage: String) -> String,
 ) : EmoteProvider {
     override val source = EmoteSource.Twitch
 
@@ -282,6 +282,6 @@ class TwitchEmoteProvider(
     private suspend fun load(url: String): List<Emote> {
         if (clientId.isBlank()) return emptyList()
         val access = token() ?: return emptyList()
-        return TwitchEmoteParser.parse(fetch(url, clientId, access))
+        return TwitchEmoteParser.parse(fetch(url, clientId, access, "Could not load emotes"))
     }
 }

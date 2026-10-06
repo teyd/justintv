@@ -8,6 +8,8 @@ import dev.teyd.justintv.core.model.twitchImageUrl
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 
 /** A directory request failed for a reason the UI should show. */
 class DirectoryException(
@@ -282,13 +284,12 @@ class TwitchDirectoryApi(
 
     private suspend fun request(query: String): String {
         val body =
-            kotlinx.serialization.json
-                .buildJsonObject {
-                    put("query", kotlinx.serialization.json.JsonPrimitive(query))
-                }.toString()
+            buildJsonObject {
+                put("query", JsonPrimitive(query))
+            }.toString()
         return try {
             gql.post(body)
-        } catch (e: PlaybackException) {
+        } catch (e: GqlException) {
             throw DirectoryException(e.message ?: "Could not reach Twitch")
         }
     }

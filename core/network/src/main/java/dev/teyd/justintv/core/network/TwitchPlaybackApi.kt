@@ -53,11 +53,11 @@ class TwitchPlaybackApi(
         login: String,
         playerType: String,
     ): PlaybackAccessToken {
-        val persisted = gql.post(GqlRequestBuilder.persistedAccessTokenRequest(login, playerType))
+        val persisted = post(GqlRequestBuilder.persistedAccessTokenRequest(login, playerType))
         val first = PlaybackTokenParser.parse(persisted)
         if (first is PlaybackTokenParser.ParseResult.Success) return first.token
 
-        val full = gql.post(GqlRequestBuilder.fullAccessTokenRequest(login, playerType))
+        val full = post(GqlRequestBuilder.fullAccessTokenRequest(login, playerType))
         return when (val second = PlaybackTokenParser.parse(full)) {
             is PlaybackTokenParser.ParseResult.Success -> second.token
             is PlaybackTokenParser.ParseResult.Failure -> throw second.reason.toException(second.message)
@@ -73,6 +73,15 @@ class TwitchPlaybackApi(
         val token = playbackAccessToken(login, playerType)
         return UsherUrlBuilder.streamUrl(login, token, platform = "web")
     }
+
+    private suspend fun post(body: String): String =
+        try {
+            gql.post(body)
+        } catch (e: GqlException.Network) {
+            throw PlaybackException.Network(e.message.orEmpty())
+        } catch (e: GqlException.Rejected) {
+            throw PlaybackException.RequestRejected(e.message.orEmpty())
+        }
 
     private fun PlaybackTokenParser.FailureReason.toException(message: String): PlaybackException =
         when (this) {

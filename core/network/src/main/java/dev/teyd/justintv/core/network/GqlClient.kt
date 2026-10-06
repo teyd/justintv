@@ -9,6 +9,21 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.UUID
 
+/** Why a GraphQL round trip failed before any response could be parsed. */
+sealed class GqlException(
+    message: String,
+) : Exception(message) {
+    /** The device could not reach Twitch or the read failed. */
+    class Network(
+        message: String,
+    ) : GqlException(message)
+
+    /** Twitch answered with an error status and no body. */
+    class Rejected(
+        message: String,
+    ) : GqlException(message)
+}
+
 /**
  * The one place that talks to `gql.twitch.tv`. Anonymous only: no user credentials are sent.
  */
@@ -34,17 +49,17 @@ class GqlClient(
             try {
                 httpClient.newCall(request).awaitResponse()
             } catch (e: IOException) {
-                throw PlaybackException.Network(e.message ?: "GraphQL request failed")
+                throw GqlException.Network(e.message ?: "GraphQL request failed")
             }
         return response.use {
             val text =
                 try {
                     withContext(Dispatchers.IO) { it.body?.string().orEmpty() }
                 } catch (e: IOException) {
-                    throw PlaybackException.Network(e.message ?: "GraphQL read failed")
+                    throw GqlException.Network(e.message ?: "GraphQL read failed")
                 }
             if (!it.isSuccessful && text.isBlank()) {
-                throw PlaybackException.RequestRejected("HTTP ${it.code} from GraphQL")
+                throw GqlException.Rejected("HTTP ${it.code} from GraphQL")
             }
             text
         }

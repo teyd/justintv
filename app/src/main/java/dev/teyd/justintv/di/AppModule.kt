@@ -41,6 +41,7 @@ import dev.teyd.justintv.core.model.ChatBadgeSource
 import dev.teyd.justintv.core.network.ActiveNetworkDns
 import dev.teyd.justintv.core.network.DirectorySource
 import dev.teyd.justintv.core.network.GqlClient
+import dev.teyd.justintv.core.network.HelixClient
 import dev.teyd.justintv.core.network.JsonPoster
 import dev.teyd.justintv.core.network.OkHttpJsonPoster
 import dev.teyd.justintv.core.network.OkHttpTextFetcher
@@ -141,6 +142,7 @@ object AppModule {
     ): TwitchSession =
         TwitchSession(
             api = TwitchIdentityApi(httpClient),
+            helix = HelixClient(httpClient),
             vault = vault,
             clientId = dev.teyd.justintv.TwitchConfig.clientId,
         )
@@ -188,7 +190,7 @@ object AppModule {
     ): EmoteRepository {
         val probe = probeClient(httpClient, PROVIDER_CALL_TIMEOUT_SECONDS)
         val fetcher = OkHttpTextFetcher(probe)
-        val helix = TwitchIdentityApi(probe)
+        val helix = HelixClient(probe)
         return EmoteRepository(
             providers =
                 listOf(
