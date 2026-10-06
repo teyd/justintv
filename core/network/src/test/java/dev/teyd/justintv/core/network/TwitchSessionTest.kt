@@ -4,13 +4,14 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertThrows
-import org.junit.Ignore
 import org.junit.Test
 import java.io.IOException
 import java.net.UnknownHostException
@@ -264,9 +265,6 @@ class TwitchSessionTest {
             assertThat(twitch.requestsTo("oauth2/token")).isEmpty()
         }
 
-    @Ignore(
-        "Production gap: refreshLocked() returns the same token while it is still 'fresh', so a revoked but unexpired token is never refreshed after a 401.",
-    )
     @Test
     fun `a 401 on an unexpired token refreshes once and retries`() =
         runTest {
@@ -282,6 +280,84 @@ class TwitchSessionTest {
             assertThat(session.followedStreams()).hasSize(1)
 
             assertThat(twitch.requestsTo("streams/followed").last().headers["Authorization"]).isEqualTo("Bearer access-2")
+        }
+
+    @Test
+    fun `concurrent 401s on the same unexpired token refresh once`() =
+        runTest {
+            twitch.on(
+                "helix/streams/followed",
+                FakeTwitch.Reply(401),
+                FakeTwitch.Reply(200, streams),
+            )
+            twitch.on("helix/users", 200, usersJson(userJson()))
+            twitch.on("oauth2/token", 200, tokenJson("access-2", "refresh-2"))
+            val session = session(FakeVault(storedSession()))
+
+            val results = listOf(async { session.followedStreams() }, async { session.followedStreams() }).awaitAll()
+
+            assertThat(results.map { it.size }).containsExactly(1, 1)
+            assertThat(twitch.requestsTo("streams/followed").map { it.headers["Authorization"] })
+                .containsExactly("Bearer access-1", "Bearer access-2", "Bearer access-2")
+            assertThat(twitch.requestsTo("oauth2/token")).hasSize(1)
+        }
+
+    @Test
+    fun `a 401 on an unexpired token whose refresh is rejected signs out`() =
+        runTest {
+            scriptHelix(followed = FakeTwitch.Reply(401))
+            twitch.on("oauth2/token", 400, """{"error":"invalid_grant"}""")
+            val vault = FakeVault(storedSession())
+            val session = session(vault)
+
+            assertThrows(IdentityException::class.java) { kotlinx.coroutines.runBlocking { session.followedStreams() } }
+
+            assertThat(session.state.value).isEqualTo(AuthState.LoggedOut)
+            assertThat(vault.session).isNull()
+            assertThat(vault.clears).isEqualTo(1)
+        }
+
+    @Test
+    fun `a 401 on an unexpired token with a 5xx refresh keeps the account`() =
+        runTest {
+            scriptHelix(followed = FakeTwitch.Reply(401))
+            twitch.on("oauth2/token", 503, "")
+            val vault = FakeVault(storedSession())
+            val session = session(vault)
+
+            assertThrows(UnauthorizedException::class.java) { kotlinx.coroutines.runBlocking { session.followedStreams() } }
+
+            assertThat(session.state.value).isEqualTo(loggedIn())
+            assertThat(vault.session?.refreshToken).isEqualTo("refresh-1")
+            assertThat(vault.clears).isEqualTo(0)
+        }
+
+    @Test
+    fun `restore refreshes and retries when the profile call 401s on an unexpired token`() =
+        runTest {
+            twitch.on("helix/users", FakeTwitch.Reply(401), FakeTwitch.Reply(200, usersJson(userJson(displayName = "Renamed"))))
+            twitch.on("oauth2/token", 200, tokenJson("access-2", "refresh-2"))
+            val vault = FakeVault(storedSession())
+
+            val session = session(vault)
+
+            assertThat(twitch.requestsTo("helix/users").last().headers["Authorization"]).isEqualTo("Bearer access-2")
+            assertThat(vault.session?.accessToken).isEqualTo("access-2")
+            assertThat(vault.session?.displayName).isEqualTo("Renamed")
+            assertThat(session.state.value).isEqualTo(AuthState.LoggedIn("42", "viewer", "Renamed", false))
+        }
+
+    @Test
+    fun `restore signs out when the refresh after a profile 401 is rejected`() =
+        runTest {
+            twitch.on("helix/users", 401, "")
+            twitch.on("oauth2/token", 400, """{"error":"invalid_grant"}""")
+            val vault = FakeVault(storedSession())
+
+            val session = session(vault)
+
+            assertThat(session.state.value).isEqualTo(AuthState.LoggedOut)
+            assertThat(vault.session).isNull()
         }
 
     @Test

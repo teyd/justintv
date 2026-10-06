@@ -127,7 +127,7 @@ class TwitchSession(
         return try {
             helix.followedStreams(clientId, token, userId)
         } catch (_: UnauthorizedException) {
-            val refreshed = refreshLocked() ?: throw IdentityException("Sign-in expired")
+            val refreshed = refreshLocked(rejected = token) ?: throw IdentityException("Sign-in expired")
             helix.followedStreams(clientId, refreshed, userId)
         }
     }
@@ -157,11 +157,16 @@ class TwitchSession(
         if (clientId.isBlank()) return
         try {
             freshAccessToken()
-            val user = helix.currentUser(clientId, stored?.accessToken ?: return)
+            val token = stored?.accessToken ?: return
+            val user =
+                try {
+                    helix.currentUser(clientId, token)
+                } catch (_: UnauthorizedException) {
+                    // refreshLocked deletes the session only when Twitch rejects the refresh token.
+                    val refreshed = refreshLocked(rejected = token) ?: return
+                    helix.currentUser(clientId, refreshed)
+                }
             saveUser(user, stored?.refreshToken.orEmpty(), stored?.expiresAtEpochMs ?: 0L)
-        } catch (_: UnauthorizedException) {
-            // refreshLocked deletes the session only when Twitch rejects the refresh token.
-            refreshLocked()
         } catch (_: Exception) {
             // Keep the saved account on a network miss. The next Helix call can refresh.
         }
@@ -230,10 +235,16 @@ class TwitchSession(
         return refreshLocked()
     }
 
-    private suspend fun refreshLocked(): String? =
+    /**
+     * [rejected] is a token Helix answered 401 to. It forces a real refresh even when the token
+     * looks fresh, unless another caller already replaced it while we waited for the lock.
+     */
+    private suspend fun refreshLocked(rejected: String? = null): String? =
         refreshLock.withLock {
             val current = stored ?: return null
-            if (current.expiresAtEpochMs - System.currentTimeMillis() > REFRESH_EARLY_MS) {
+            if (rejected != null) {
+                if (current.accessToken != rejected) return current.accessToken
+            } else if (current.expiresAtEpochMs - System.currentTimeMillis() > REFRESH_EARLY_MS) {
                 return current.accessToken
             }
             if (clientId.isBlank() || current.refreshToken.isBlank()) {
