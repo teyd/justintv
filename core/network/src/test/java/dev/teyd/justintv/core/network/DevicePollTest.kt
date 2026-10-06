@@ -33,6 +33,37 @@ class DevicePollTest {
     }
 
     @Test
+    fun `a grant without a refresh token or scopes still parses`() {
+        val poll = TwitchIdentityApi.parseDevicePoll(200, """{"access_token":"abc","expires_in":60}""")
+        val grant = (poll as DevicePoll.Granted).grant
+        assertThat(grant.refreshToken).isEmpty()
+        assertThat(grant.scopes).isEmpty()
+    }
+
+    @Test
+    fun `a rejection without a readable message gets a default`() {
+        for (body in listOf("", "<html>bad gateway</html>", """{"status":500}""")) {
+            val poll = TwitchIdentityApi.parseDevicePoll(500, body)
+            assertThat((poll as DevicePoll.Rejected).message).isEqualTo("Sign-in was rejected")
+        }
+    }
+
+    @Test
+    fun `pending and slow down match case-insensitively inside longer messages`() {
+        assertThat(TwitchIdentityApi.parseDevicePoll(400, """{"message":"Authorization_Pending"}"""))
+            .isEqualTo(DevicePoll.Pending)
+        assertThat(TwitchIdentityApi.parseDevicePoll(400, """{"message":"error: slow_down please"}"""))
+            .isEqualTo(DevicePoll.SlowDown)
+    }
+
+    @Test
+    fun `refresh is not rejected by other 4xx codes`() {
+        assertThat(TwitchIdentityApi.isRejectedRefresh(403, "invalid_grant")).isFalse()
+        assertThat(TwitchIdentityApi.isRejectedRefresh(429, "")).isFalse()
+        assertThat(TwitchIdentityApi.isRejectedRefresh(400, "")).isFalse()
+    }
+
+    @Test
     fun `slow down is not a failure`() {
         val poll = TwitchIdentityApi.parseDevicePoll(400, """{"message":"slow_down"}""")
         assertThat(poll).isEqualTo(DevicePoll.SlowDown)
