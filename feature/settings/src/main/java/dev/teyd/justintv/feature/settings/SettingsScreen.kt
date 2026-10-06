@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.teyd.justintv.core.data.ChatTextSize
+import dev.teyd.justintv.core.data.ChatTimeFormat
 import dev.teyd.justintv.core.data.ThemeMode
 import dev.teyd.justintv.core.network.AuthState
 
@@ -149,6 +150,8 @@ fun SettingsScreen(
                     onShowInput = viewModel::setShowChatInput,
                     onColoredUsernames = viewModel::setColoredUsernames,
                     onChatTextSize = viewModel::setChatTextSize,
+                    onShowTimestamps = viewModel::setShowTimestamps,
+                    onTimeFormat = viewModel::setTimeFormat,
                     modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
                     contentPadding = padding,
                 )
@@ -431,6 +434,8 @@ private fun ChatPage(
     onShowInput: (Boolean) -> Unit,
     onColoredUsernames: (Boolean) -> Unit,
     onChatTextSize: (ChatTextSize) -> Unit,
+    onShowTimestamps: (Boolean) -> Unit,
+    onTimeFormat: (ChatTimeFormat) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: androidx.compose.foundation.layout.PaddingValues,
 ) {
@@ -452,6 +457,22 @@ private fun ChatPage(
                 limit = state.recentMessageLimit,
                 enabled = state.recentMessages,
                 onSelect = onLimit,
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text("Timestamps") },
+                supportingContent = { Text("Show the time each message was sent, in your local time.") },
+                trailingContent = {
+                    Switch(checked = state.showTimestamps, onCheckedChange = onShowTimestamps)
+                },
+            )
+        }
+        item {
+            TimeFormatRow(
+                format = state.timeFormat,
+                enabled = state.showTimestamps,
+                onSelect = onTimeFormat,
             )
         }
         item {
@@ -631,6 +652,46 @@ private fun ProxyRow(
             }
         },
     )
+}
+
+@Composable
+private fun TimeFormatRow(
+    format: ChatTimeFormat,
+    enabled: Boolean,
+    onSelect: (ChatTimeFormat) -> Unit,
+) {
+    val options = ChatTimeFormat.entries
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = "Time format",
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, option ->
+                SegmentedButton(
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                    onClick = { onSelect(option) },
+                    selected = option == format,
+                    enabled = enabled,
+                ) {
+                    Text(
+                        when (option) {
+                            ChatTimeFormat.System -> "System"
+                            ChatTimeFormat.Hour12 -> "12-hour"
+                            ChatTimeFormat.Hour24 -> "24-hour"
+                        },
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

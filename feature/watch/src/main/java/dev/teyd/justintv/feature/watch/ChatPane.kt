@@ -1,5 +1,6 @@
 package dev.teyd.justintv.feature.watch
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -45,9 +47,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import dev.teyd.justintv.core.chat.ChatStatus
 import dev.teyd.justintv.core.data.ChatTextSize
+import dev.teyd.justintv.core.data.ChatTimeFormat
 import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.model.ChatSegment
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /** Chat for the current channel: emotes inline, names and text sized by the viewer's settings. */
 @Composable
@@ -63,6 +70,8 @@ fun ChatPane(
             status = state.status,
             coloredUsernames = state.coloredUsernames,
             textSize = state.chatTextSize,
+            showTimestamps = state.showTimestamps,
+            timeFormat = state.timeFormat,
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
         ChatComposer(
@@ -80,6 +89,8 @@ fun ChatList(
     status: ChatStatus,
     coloredUsernames: Boolean = true,
     textSize: ChatTextSize = ChatTextSize.Default,
+    showTimestamps: Boolean = false,
+    timeFormat: ChatTimeFormat = ChatTimeFormat.System,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -131,6 +142,8 @@ fun ChatList(
                         message = message,
                         coloredUsernames = coloredUsernames,
                         textSize = textSize,
+                        showTimestamp = showTimestamps,
+                        timeFormat = timeFormat,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     )
                 }
@@ -171,18 +184,31 @@ fun ChatLine(
     message: ChatMessage,
     coloredUsernames: Boolean = true,
     textSize: ChatTextSize = ChatTextSize.Default,
+    showTimestamp: Boolean = false,
+    timeFormat: ChatTimeFormat = ChatTimeFormat.System,
     modifier: Modifier = Modifier,
 ) {
     val linkColor = MaterialTheme.colorScheme.primary
     // Unspecified leaves the name on the text's own colour, which is what "no colours" means.
     val nameColor = if (coloredUsernames) parseChatColor(message.color) else Color.Unspecified
+    val timestampColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val context = LocalContext.current
+    val is24Hour =
+        when (timeFormat) {
+            ChatTimeFormat.System -> DateFormat.is24HourFormat(context)
+            ChatTimeFormat.Hour12 -> false
+            ChatTimeFormat.Hour24 -> true
+        }
+    val timestamp = if (showTimestamp) message.timestampMs?.let { formatChatTime(it, is24Hour = is24Hour) } else null
     val built =
-        remember(message, linkColor, nameColor, textSize) {
+        remember(message, linkColor, nameColor, textSize, timestamp, timestampColor) {
             buildChatText(
                 message = message,
                 linkStyles = TextLinkStyles(style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
                 nameColor = nameColor,
                 textSize = textSize,
+                timestamp = timestamp,
+                timestampColor = timestampColor,
             )
         }
 
@@ -198,6 +224,20 @@ fun ChatLine(
     )
 }
 
+/** Local wall-clock time for a chat line: `14:05` in 24-hour, `2:05 PM` in 12-hour. */
+internal fun formatChatTime(
+    timestampMs: Long,
+    zone: ZoneId = ZoneId.systemDefault(),
+    is24Hour: Boolean = true,
+): String =
+    Instant
+        .ofEpochMilli(timestampMs)
+        .atZone(zone)
+        .format(if (is24Hour) hour24Formatter else hour12Formatter)
+
+private val hour24Formatter = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+private val hour12Formatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
+
 internal class BuiltChat(
     val text: AnnotatedString,
     val inline: Map<String, InlineTextContent>,
@@ -208,11 +248,17 @@ internal fun buildChatText(
     linkStyles: TextLinkStyles,
     nameColor: Color = parseChatColor(message.color),
     textSize: ChatTextSize = ChatTextSize.Default,
+    timestamp: String? = null,
+    timestampColor: Color = Color.Unspecified,
 ): BuiltChat {
     val inline = HashMap<String, InlineTextContent>()
     val emoteHeight = textSize.emoteSp
     val text =
         buildAnnotatedString {
+            if (timestamp != null) {
+                withStyle(SpanStyle(color = timestampColor)) { append(timestamp) }
+                append(" ")
+            }
             withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = nameColor)) { append(message.user) }
             append(if (message.isAction) " " else ": ")
             message.segments.forEachIndexed { index, segment ->

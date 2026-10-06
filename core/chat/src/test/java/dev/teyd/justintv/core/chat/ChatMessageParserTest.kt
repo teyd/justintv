@@ -149,6 +149,31 @@ class ChatMessageParserTest {
     }
 
     @Test
+    fun `keeps the sent time from the tmi-sent-ts tag`() {
+        val message =
+            ChatMessageParser.parse(
+                privmsg("hi", tags = "display-name=V;id=m7;tmi-sent-ts=1700000000123"),
+                EmoteIndex.EMPTY,
+            )!!
+
+        assertThat(message.timestampMs).isEqualTo(1_700_000_000_123L)
+    }
+
+    @Test
+    fun `a missing or malformed sent time becomes null`() {
+        val missing =
+            ChatMessageParser.parse(privmsg("hi", tags = "display-name=V;id=m8"), EmoteIndex.EMPTY)!!
+        val malformed =
+            ChatMessageParser.parse(
+                privmsg("hi", tags = "display-name=V;id=m9;tmi-sent-ts=later"),
+                EmoteIndex.EMPTY,
+            )!!
+
+        assertThat(missing.timestampMs).isNull()
+        assertThat(malformed.timestampMs).isNull()
+    }
+
+    @Test
     fun `only chat lines become messages`() {
         val roomstate = IrcParser.parse("@room-id=1 :tmi.twitch.tv ROOMSTATE #chan")!!
 

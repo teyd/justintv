@@ -29,4 +29,9 @@ data class ChatMessage(
     val color: String,
     val segments: List<ChatSegment>,
     val isAction: Boolean = false,
+    /**
+     * When Twitch says the message was sent, as Unix epoch milliseconds from the
+     * `tmi-sent-ts` tag. Null when the source did not carry it; the UI then shows no time.
+     */
+    val timestampMs: Long? = null,
 )

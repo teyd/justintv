@@ -10,6 +10,7 @@ import dev.teyd.justintv.core.data.AdBlockSettingsStore
 import dev.teyd.justintv.core.data.AppearanceSettingsStore
 import dev.teyd.justintv.core.data.ChatSettingsStore
 import dev.teyd.justintv.core.data.ChatTextSize
+import dev.teyd.justintv.core.data.ChatTimeFormat
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import dev.teyd.justintv.core.data.ThemeMode
 import kotlinx.coroutines.coroutineScope
@@ -44,6 +45,8 @@ data class SettingsUiState(
     val showChatInput: Boolean = true,
     val coloredUsernames: Boolean = true,
     val chatTextSize: ChatTextSize = ChatTextSize.Default,
+    val showTimestamps: Boolean = false,
+    val timeFormat: ChatTimeFormat = ChatTimeFormat.System,
     val themeMode: ThemeMode = ThemeMode.System,
     val dynamicColor: Boolean = false,
 )
@@ -127,6 +130,16 @@ class SettingsViewModel
                     _state.update { it.copy(keepScreenOn = enabled) }
                 }
             }
+            viewModelScope.launch {
+                chatSettings.showTimestamps.collect { enabled ->
+                    _state.update { it.copy(showTimestamps = enabled) }
+                }
+            }
+            viewModelScope.launch {
+                chatSettings.timeFormat.collect { format ->
+                    _state.update { it.copy(timeFormat = format) }
+                }
+            }
             checkProxies()
         }
 
@@ -183,6 +196,14 @@ class SettingsViewModel
 
         fun setChatTextSize(size: ChatTextSize) {
             viewModelScope.launch { chatSettings.setChatTextSize(size) }
+        }
+
+        fun setShowTimestamps(enabled: Boolean) {
+            viewModelScope.launch { chatSettings.setShowTimestamps(enabled) }
+        }
+
+        fun setTimeFormat(format: ChatTimeFormat) {
+            viewModelScope.launch { chatSettings.setTimeFormat(format) }
         }
 
         fun setThemeMode(mode: ThemeMode) {

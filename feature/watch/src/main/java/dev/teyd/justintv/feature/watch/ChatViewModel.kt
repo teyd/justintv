@@ -10,6 +10,7 @@ import dev.teyd.justintv.core.chat.Emote
 import dev.teyd.justintv.core.chat.EmoteSource
 import dev.teyd.justintv.core.data.ChatSettingsStore
 import dev.teyd.justintv.core.data.ChatTextSize
+import dev.teyd.justintv.core.data.ChatTimeFormat
 import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.network.AuthState
 import dev.teyd.justintv.core.network.TwitchSession
@@ -30,6 +31,8 @@ data class ChatUiState(
     val composer: ComposerState = ComposerState(),
     val coloredUsernames: Boolean = true,
     val chatTextSize: ChatTextSize = ChatTextSize.Default,
+    val showTimestamps: Boolean = false,
+    val timeFormat: ChatTimeFormat = ChatTimeFormat.System,
 )
 
 /**
@@ -73,6 +76,16 @@ class ChatViewModel
                     .collect { (colored, size) ->
                         _state.update { it.copy(coloredUsernames = colored, chatTextSize = size) }
                     }
+            }
+            viewModelScope.launch {
+                chatSettings.showTimestamps.collect { enabled ->
+                    _state.update { it.copy(showTimestamps = enabled) }
+                }
+            }
+            viewModelScope.launch {
+                chatSettings.timeFormat.collect { format ->
+                    _state.update { it.copy(timeFormat = format) }
+                }
             }
             viewModelScope.launch {
                 twitch.state.collect { next ->
@@ -164,6 +177,8 @@ class ChatViewModel
                 ChatUiState(
                     coloredUsernames = it.coloredUsernames,
                     chatTextSize = it.chatTextSize,
+                    showTimestamps = it.showTimestamps,
+                    timeFormat = it.timeFormat,
                 )
             }
         }

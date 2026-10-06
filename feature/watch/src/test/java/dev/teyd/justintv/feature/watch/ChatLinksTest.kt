@@ -127,4 +127,28 @@ class ChatLinksTest {
         assertThat(built.text.text).isEqualTo("example.com visits twitch.tv/channel")
         assertThat(urls(built.text)).containsExactly("https://twitch.tv/channel")
     }
+
+    @Test
+    fun `a shown timestamp is prepended before the name`() {
+        val built =
+            buildChatText(
+                ChatMessage("message", "alice", "#123456", listOf(ChatSegment.Text("hi")), timestampMs = 1_700_000_000_000),
+                styles,
+                timestamp = "22:13",
+                timestampColor = Color.Gray,
+            )
+
+        assertThat(built.text.text).isEqualTo("22:13 alice: hi")
+    }
+
+    @Test
+    fun `no timestamp leaves the line unchanged`() {
+        val built =
+            buildChatText(
+                ChatMessage("message", "alice", "#123456", listOf(ChatSegment.Text("hi")), timestampMs = 1_700_000_000_000),
+                styles,
+            )
+
+        assertThat(built.text.text).isEqualTo("alice: hi")
+    }
 }

@@ -44,6 +44,7 @@ object ChatMessageParser {
             color = color,
             segments = tokenize(text, ranges, index),
             isAction = isAction,
+            timestampMs = irc.tags["tmi-sent-ts"]?.toLongOrNull(),
         )
     }
 
