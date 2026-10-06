@@ -106,7 +106,7 @@ object HelixDirectoryMapper {
         body: String,
         avatars: Map<String, String> = emptyMap(),
     ): Page<LiveStream> {
-        val parsed = decode<StreamsBody>(body)
+        val parsed = decode<HelixStreamsBody>(body)
         return Page(
             items =
                 parsed.data.map { stream ->
@@ -128,7 +128,7 @@ object HelixDirectoryMapper {
     }
 
     /** The user ids of a streams page, in order, for the avatar call. */
-    fun streamUserIds(body: String): List<String> = decode<StreamsBody>(body).data.map { it.userId }
+    fun streamUserIds(body: String): List<String> = decode<HelixStreamsBody>(body).data.map { it.userId }
 
     fun parseGames(body: String): Page<Game> {
         val parsed = decode<GamesBody>(body)
@@ -141,7 +141,7 @@ object HelixDirectoryMapper {
     fun parseGameId(body: String): String? = decode<GamesBody>(body).data.firstOrNull()?.id
 
     fun parseAvatars(body: String): Map<String, String> =
-        decode<UsersBody>(body)
+        decode<HelixUsersBody>(body)
             .data
             .mapNotNull { user -> user.profileImageUrl?.takeIf { it.isNotBlank() }?.let { user.id to it } }
             .toMap()
@@ -223,54 +223,15 @@ internal suspend fun helixRequest(
         if (result.code == 429) throw HelixRateLimitedException()
     }
     if (result.code == 401) throw UnauthorizedException()
-    if (result.code != 200) throw HelixException(helixErrorMessage(result.body) ?: "Twitch returned ${result.code}")
+    if (result.code != 200) throw HelixException(errorMessage(result.body) ?: "Twitch returned ${result.code}")
     if (result.body.isBlank()) throw HelixException("Twitch returned an empty response")
     return result.body
 }
 
-private val errorJson = Json { ignoreUnknownKeys = true }
-
-private fun helixErrorMessage(body: String): String? =
-    try {
-        errorJson.decodeFromString<HelixErrorBody>(body).message?.takeIf { it.isNotBlank() }
-    } catch (_: Exception) {
-        null
-    }
-
-@Serializable
-private data class HelixErrorBody(
-    val message: String? = null,
-)
-
-@Serializable
-private data class PaginationBody(
-    val cursor: String? = null,
-)
-
-@Serializable
-private data class StreamsBody(
-    val data: List<HelixStream> = emptyList(),
-    val pagination: PaginationBody? = null,
-)
-
-@Serializable
-private data class HelixStream(
-    val id: String,
-    @SerialName("user_id") val userId: String = "",
-    @SerialName("user_login") val userLogin: String,
-    @SerialName("user_name") val userName: String? = null,
-    val title: String? = null,
-    @SerialName("viewer_count") val viewerCount: Int = 0,
-    @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
-    @SerialName("game_name") val gameName: String? = null,
-    val language: String? = null,
-    @SerialName("started_at") val startedAt: String? = null,
-)
-
 @Serializable
 private data class GamesBody(
     val data: List<HelixGameBody> = emptyList(),
-    val pagination: PaginationBody? = null,
+    val pagination: HelixPaginationBody? = null,
 )
 
 @Serializable
@@ -278,15 +239,4 @@ private data class HelixGameBody(
     val id: String,
     val name: String,
     @SerialName("box_art_url") val boxArtUrl: String? = null,
-)
-
-@Serializable
-private data class UsersBody(
-    val data: List<HelixUser> = emptyList(),
-)
-
-@Serializable
-private data class HelixUser(
-    val id: String,
-    @SerialName("profile_image_url") val profileImageUrl: String? = null,
 )

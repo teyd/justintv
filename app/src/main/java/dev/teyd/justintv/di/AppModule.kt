@@ -120,7 +120,7 @@ object AppModule {
     ): DirectorySource =
         CompositeDirectorySource(
             gql = TwitchDirectoryApi(GqlClient(httpClient)),
-            helix = HelixDirectoryApi(httpClient, session),
+            helix = HelixDirectoryApi(HelixClient(httpClient), session),
             auth = session,
         )
 

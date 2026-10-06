@@ -3,8 +3,6 @@ package dev.teyd.justintv.core.network
 import dev.teyd.justintv.core.model.ChannelHit
 import dev.teyd.justintv.core.model.Game
 import dev.teyd.justintv.core.model.LiveStream
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import kotlin.coroutines.cancellation.CancellationException
 
 /** What one Helix call needs from the signed-in user. */
@@ -23,7 +21,7 @@ interface HelixAuthorizer {
 
 /** [HelixDirectory] over the Helix REST API with the signed-in user's token. */
 class HelixDirectoryApi(
-    private val http: OkHttpClient,
+    private val helix: HelixClient,
     private val auth: HelixAuthorizer,
 ) : HelixDirectory {
     override suspend fun streams(
@@ -71,24 +69,7 @@ class HelixDirectoryApi(
     private suspend fun get(
         creds: HelixCredentials,
         url: String,
-    ): String =
-        helixRequest {
-            val request =
-                Request
-                    .Builder()
-                    .url(url)
-                    .header("Authorization", "Bearer ${creds.accessToken}")
-                    .header("Client-Id", creds.clientId)
-                    .build()
-            http.newCall(request).awaitResponse().use { response ->
-                HelixHttpResult(
-                    code = response.code,
-                    body = response.body?.string().orEmpty(),
-                    retryAfter = response.header("Retry-After"),
-                    resetEpochSeconds = response.header("Ratelimit-Reset"),
-                )
-            }
-        }
+    ): String = helixRequest { helix.send(url, creds.clientId, creds.accessToken) }
 }
 
 /**

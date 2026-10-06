@@ -27,6 +27,19 @@ class HelixClient(
         accessToken: String,
         failureMessage: String,
     ): String {
+        val result = send(url, clientId, accessToken)
+        if (result.code == 401) throw UnauthorizedException()
+        if (result.code != 200) throw IdentityException(errorMessage(result.body) ?: failureMessage)
+        if (result.body.isBlank()) throw IdentityException("empty response")
+        return result.body
+    }
+
+    /** The raw answer, with the headers the rate-limit retry needs. Status handling is the caller's. */
+    internal suspend fun send(
+        url: String,
+        clientId: String,
+        accessToken: String,
+    ): HelixHttpResult {
         val request =
             Request
                 .Builder()
@@ -34,12 +47,14 @@ class HelixClient(
                 .header("Authorization", "Bearer $accessToken")
                 .header("Client-Id", clientId)
                 .build()
-        val (code, body) =
-            http.newCall(request).awaitResponse().use { it.code to it.body?.string().orEmpty() }
-        if (code == 401) throw UnauthorizedException()
-        if (code != 200) throw IdentityException(errorMessage(body) ?: failureMessage)
-        if (body.isBlank()) throw IdentityException("empty response")
-        return body
+        return http.newCall(request).awaitResponse().use { response ->
+            HelixHttpResult(
+                code = response.code,
+                body = response.body?.string().orEmpty(),
+                retryAfter = response.header("Retry-After"),
+                resetEpochSeconds = response.header("Ratelimit-Reset"),
+            )
+        }
     }
 
     suspend fun currentUser(
@@ -103,25 +118,31 @@ class HelixClient(
 }
 
 @Serializable
-private data class HelixUsersBody(
+internal data class HelixUsersBody(
     val data: List<HelixUserBody> = emptyList(),
 )
 
 @Serializable
-private data class HelixUserBody(
+internal data class HelixUserBody(
     val id: String,
-    val login: String,
+    val login: String = "",
     @SerialName("display_name") val displayName: String? = null,
     @SerialName("profile_image_url") val profileImageUrl: String? = null,
 )
 
 @Serializable
-private data class HelixStreamsBody(
+internal data class HelixStreamsBody(
     val data: List<HelixStreamBody> = emptyList(),
+    val pagination: HelixPaginationBody? = null,
 )
 
 @Serializable
-private data class HelixStreamBody(
+internal data class HelixPaginationBody(
+    val cursor: String? = null,
+)
+
+@Serializable
+internal data class HelixStreamBody(
     val id: String,
     @SerialName("user_id") val userId: String = "",
     @SerialName("user_login") val userLogin: String,
