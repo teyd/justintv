@@ -44,14 +44,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import dev.teyd.justintv.core.chat.ChatStatus
+import dev.teyd.justintv.core.data.ChatTextSize
 import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.model.ChatSegment
 import kotlinx.coroutines.launch
 
-private const val TEXT_SIZE_SP = 14
-private const val EMOTE_HEIGHT_SP = 24
-
-/** Chat for the current channel: emotes inline, plain names, newest at the bottom. */
+/** Chat for the current channel: emotes inline, names and text sized by the viewer's settings. */
 @Composable
 fun ChatPane(
     modifier: Modifier = Modifier,
@@ -63,6 +61,8 @@ fun ChatPane(
         ChatList(
             messages = state.messages,
             status = state.status,
+            coloredUsernames = state.coloredUsernames,
+            textSize = state.chatTextSize,
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
         ChatComposer(
@@ -78,6 +78,8 @@ fun ChatPane(
 fun ChatList(
     messages: List<ChatMessage>,
     status: ChatStatus,
+    coloredUsernames: Boolean = true,
+    textSize: ChatTextSize = ChatTextSize.Default,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -125,7 +127,12 @@ fun ChatList(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 items(messages, key = { it.id }) { message ->
-                    ChatLine(message, modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp))
+                    ChatLine(
+                        message = message,
+                        coloredUsernames = coloredUsernames,
+                        textSize = textSize,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                    )
                 }
             }
         }
@@ -162,18 +169,31 @@ fun ChatList(
 @Composable
 fun ChatLine(
     message: ChatMessage,
+    coloredUsernames: Boolean = true,
+    textSize: ChatTextSize = ChatTextSize.Default,
     modifier: Modifier = Modifier,
 ) {
     val linkColor = MaterialTheme.colorScheme.primary
+    // Unspecified leaves the name on the text's own colour, which is what "no colours" means.
+    val nameColor = if (coloredUsernames) parseChatColor(message.color) else Color.Unspecified
     val built =
-        remember(message, linkColor) {
-            buildChatText(message, TextLinkStyles(style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)))
+        remember(message, linkColor, nameColor, textSize) {
+            buildChatText(
+                message = message,
+                linkStyles = TextLinkStyles(style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
+                nameColor = nameColor,
+                textSize = textSize,
+            )
         }
 
     androidx.compose.material3.Text(
         text = built.text,
         inlineContent = built.inline,
-        style = MaterialTheme.typography.bodyMedium.copy(fontSize = TEXT_SIZE_SP.sp, lineHeight = (EMOTE_HEIGHT_SP + 2).sp),
+        style =
+            MaterialTheme.typography.bodyMedium.copy(
+                fontSize = textSize.textSp.sp,
+                lineHeight = (textSize.emoteSp + 2).sp,
+            ),
         modifier = modifier.fillMaxWidth(),
     )
 }
@@ -186,9 +206,11 @@ internal class BuiltChat(
 internal fun buildChatText(
     message: ChatMessage,
     linkStyles: TextLinkStyles,
+    nameColor: Color = parseChatColor(message.color),
+    textSize: ChatTextSize = ChatTextSize.Default,
 ): BuiltChat {
     val inline = HashMap<String, InlineTextContent>()
-    val nameColor = parseChatColor(message.color)
+    val emoteHeight = textSize.emoteSp
     val text =
         buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = nameColor)) { append(message.user) }
@@ -205,8 +227,8 @@ internal fun buildChatText(
                         inline[id] =
                             InlineTextContent(
                                 Placeholder(
-                                    width = (EMOTE_HEIGHT_SP * segment.aspectRatio).sp,
-                                    height = EMOTE_HEIGHT_SP.sp,
+                                    width = (emoteHeight * segment.aspectRatio).sp,
+                                    height = emoteHeight.sp,
                                     placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
                                 ),
                             ) {

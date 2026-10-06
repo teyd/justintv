@@ -9,6 +9,7 @@ import dev.teyd.justintv.core.adfree.ProxyHealthChecker
 import dev.teyd.justintv.core.data.AdBlockSettingsStore
 import dev.teyd.justintv.core.data.AppearanceSettingsStore
 import dev.teyd.justintv.core.data.ChatSettingsStore
+import dev.teyd.justintv.core.data.ChatTextSize
 import dev.teyd.justintv.core.data.PlaybackSettingsStore
 import dev.teyd.justintv.core.data.ThemeMode
 import kotlinx.coroutines.coroutineScope
@@ -31,6 +32,7 @@ data class ProxyStatus(
 data class SettingsUiState(
     val backgroundPlayback: Boolean = false,
     val pictureInPicture: Boolean = true,
+    val keepScreenOn: Boolean = true,
     val adBlockEnabled: Boolean = true,
     val proxyStatuses: List<ProxyStatus> = DefaultProxies.ALL.map { ProxyStatus(it) },
     val isCheckingProxies: Boolean = false,
@@ -40,6 +42,8 @@ data class SettingsUiState(
     val bttv: Boolean = true,
     val ffz: Boolean = true,
     val showChatInput: Boolean = true,
+    val coloredUsernames: Boolean = true,
+    val chatTextSize: ChatTextSize = ChatTextSize.Default,
     val themeMode: ThemeMode = ThemeMode.System,
     val dynamicColor: Boolean = false,
 )
@@ -103,8 +107,24 @@ class SettingsViewModel
                 }
             }
             viewModelScope.launch {
-                chatSettings.showInput.collect { enabled ->
-                    _state.update { it.copy(showChatInput = enabled) }
+                combine(
+                    chatSettings.showInput,
+                    chatSettings.coloredUsernames,
+                    chatSettings.chatTextSize,
+                ) { showInput, colored, textSize -> ChatDisplaySlice(showInput, colored, textSize) }
+                    .collect { display ->
+                        _state.update {
+                            it.copy(
+                                showChatInput = display.showInput,
+                                coloredUsernames = display.coloredUsernames,
+                                chatTextSize = display.chatTextSize,
+                            )
+                        }
+                    }
+            }
+            viewModelScope.launch {
+                playbackSettings.keepScreenOn.collect { enabled ->
+                    _state.update { it.copy(keepScreenOn = enabled) }
                 }
             }
             checkProxies()
@@ -116,6 +136,10 @@ class SettingsViewModel
 
         fun setPictureInPicture(enabled: Boolean) {
             viewModelScope.launch { playbackSettings.setPictureInPicture(enabled) }
+        }
+
+        fun setKeepScreenOn(enabled: Boolean) {
+            viewModelScope.launch { playbackSettings.setKeepScreenOn(enabled) }
         }
 
         fun setAdBlockEnabled(enabled: Boolean) {
@@ -151,6 +175,14 @@ class SettingsViewModel
 
         fun setShowChatInput(enabled: Boolean) {
             viewModelScope.launch { chatSettings.setShowInput(enabled) }
+        }
+
+        fun setColoredUsernames(enabled: Boolean) {
+            viewModelScope.launch { chatSettings.setColoredUsernames(enabled) }
+        }
+
+        fun setChatTextSize(size: ChatTextSize) {
+            viewModelScope.launch { chatSettings.setChatTextSize(size) }
         }
 
         fun setThemeMode(mode: ThemeMode) {
@@ -214,4 +246,10 @@ private data class ChatSlice(
     val bttv: Boolean,
     val ffz: Boolean,
     val dynamic: Boolean,
+)
+
+private data class ChatDisplaySlice(
+    val showInput: Boolean,
+    val coloredUsernames: Boolean,
+    val chatTextSize: ChatTextSize,
 )

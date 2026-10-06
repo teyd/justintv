@@ -9,6 +9,7 @@ import dev.teyd.justintv.core.chat.ChatStatus
 import dev.teyd.justintv.core.chat.Emote
 import dev.teyd.justintv.core.chat.EmoteSource
 import dev.teyd.justintv.core.data.ChatSettingsStore
+import dev.teyd.justintv.core.data.ChatTextSize
 import dev.teyd.justintv.core.model.ChatMessage
 import dev.teyd.justintv.core.network.AuthState
 import dev.teyd.justintv.core.network.TwitchSession
@@ -27,6 +28,8 @@ data class ChatUiState(
     val status: ChatStatus = ChatStatus.Connecting,
     val emotes: List<Emote> = emptyList(),
     val composer: ComposerState = ComposerState(),
+    val coloredUsernames: Boolean = true,
+    val chatTextSize: ChatTextSize = ChatTextSize.Default,
 )
 
 /**
@@ -66,6 +69,12 @@ class ChatViewModel
                 }
             }
             viewModelScope.launch {
+                combine(chatSettings.coloredUsernames, chatSettings.chatTextSize) { colored, size -> colored to size }
+                    .collect { (colored, size) ->
+                        _state.update { it.copy(coloredUsernames = colored, chatTextSize = size) }
+                    }
+            }
+            viewModelScope.launch {
                 twitch.state.collect { next ->
                     val signedIn = next is AuthState.LoggedIn && auth !is AuthState.LoggedIn
                     auth = next
@@ -82,7 +91,7 @@ class ChatViewModel
             if (channel.isBlank() || channel == login) return
             stop()
             login = channel
-            _state.value = ChatUiState()
+            resetChannelState()
             publishComposer()
             collectJob =
                 viewModelScope.launch {
@@ -146,7 +155,17 @@ class ChatViewModel
         /** Drops the room. Called when playback stops, not when the watch screen is minimised. */
         fun close() {
             stop()
-            _state.value = ChatUiState()
+            resetChannelState()
+        }
+
+        /** Wipes the channel but keeps preferences, which do not depend on the room. */
+        private fun resetChannelState() {
+            _state.update {
+                ChatUiState(
+                    coloredUsernames = it.coloredUsernames,
+                    chatTextSize = it.chatTextSize,
+                )
+            }
         }
 
         private fun stop() {

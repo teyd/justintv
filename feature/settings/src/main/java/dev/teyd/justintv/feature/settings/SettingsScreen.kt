@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.teyd.justintv.core.data.ChatTextSize
 import dev.teyd.justintv.core.data.ThemeMode
 import dev.teyd.justintv.core.network.AuthState
 
@@ -120,6 +121,7 @@ fun SettingsScreen(
                     state = state,
                     onBackground = viewModel::setBackgroundPlayback,
                     onPictureInPicture = viewModel::setPictureInPicture,
+                    onKeepScreenOn = viewModel::setKeepScreenOn,
                     modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
                     contentPadding = padding,
                 )
@@ -145,6 +147,8 @@ fun SettingsScreen(
                     onBttv = viewModel::setBttv,
                     onFfz = viewModel::setFfz,
                     onShowInput = viewModel::setShowChatInput,
+                    onColoredUsernames = viewModel::setColoredUsernames,
+                    onChatTextSize = viewModel::setChatTextSize,
                     modifier = Modifier.fillMaxSize().consumeWindowInsets(padding),
                     contentPadding = padding,
                 )
@@ -207,7 +211,7 @@ private fun SettingsHub(
         }
         item { SectionHeader("Preferences") }
         item {
-            HubRow(Icons.Filled.PlayArrow, "Playback", "Background play and picture in picture") {
+            HubRow(Icons.Filled.PlayArrow, "Playback", "Background play, picture in picture, and screen wake") {
                 onOpen(SettingsPage.Playback)
             }
         }
@@ -217,7 +221,7 @@ private fun SettingsHub(
             }
         }
         item {
-            HubRow(Icons.AutoMirrored.Filled.Chat, "Chat", "History and emote providers") {
+            HubRow(Icons.AutoMirrored.Filled.Chat, "Chat", "History, names, and emote providers") {
                 onOpen(SettingsPage.Chat)
             }
         }
@@ -323,6 +327,7 @@ private fun PlaybackPage(
     state: SettingsUiState,
     onBackground: (Boolean) -> Unit,
     onPictureInPicture: (Boolean) -> Unit,
+    onKeepScreenOn: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: androidx.compose.foundation.layout.PaddingValues,
 ) {
@@ -346,6 +351,17 @@ private fun PlaybackPage(
                 },
                 trailingContent = {
                     Switch(checked = state.backgroundPlayback, onCheckedChange = onBackground)
+                },
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text("Keep screen awake") },
+                supportingContent = {
+                    Text("Hold the screen on while you watch full-size. The mini player never holds it.")
+                },
+                trailingContent = {
+                    Switch(checked = state.keepScreenOn, onCheckedChange = onKeepScreenOn)
                 },
             )
         }
@@ -413,10 +429,13 @@ private fun ChatPage(
     onBttv: (Boolean) -> Unit,
     onFfz: (Boolean) -> Unit,
     onShowInput: (Boolean) -> Unit,
+    onColoredUsernames: (Boolean) -> Unit,
+    onChatTextSize: (ChatTextSize) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: androidx.compose.foundation.layout.PaddingValues,
 ) {
     LazyColumn(modifier = modifier, contentPadding = contentPadding) {
+        item { SectionHeader("Messages") }
         item {
             ListItem(
                 headlineContent = { Text("Recent messages") },
@@ -446,6 +465,25 @@ private fun ChatPage(
                 },
             )
         }
+        item { SectionHeader("Names") }
+        item {
+            ListItem(
+                headlineContent = { Text("Colored usernames") },
+                supportingContent = {
+                    Text("Draw each name in its Twitch color. Off keeps names bold in the default text color.")
+                },
+                trailingContent = {
+                    Switch(checked = state.coloredUsernames, onCheckedChange = onColoredUsernames)
+                },
+            )
+        }
+        item {
+            ChatTextSizeRow(
+                size = state.chatTextSize,
+                onSelect = onChatTextSize,
+            )
+        }
+        item { SectionHeader("Emotes") }
         item {
             ListItem(
                 headlineContent = { Text("7TV emotes") },
@@ -626,6 +664,43 @@ private fun MessageLimitRow(
                     enabled = enabled,
                 ) {
                     Text("$option")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatTextSizeRow(
+    size: ChatTextSize,
+    onSelect: (ChatTextSize) -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(text = "Text size", style = MaterialTheme.typography.bodyLarge)
+        Spacer(Modifier.height(8.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            ChatTextSize.entries.forEachIndexed { index, option ->
+                SegmentedButton(
+                    shape =
+                        SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = ChatTextSize.entries.size,
+                        ),
+                    onClick = { onSelect(option) },
+                    selected = option == size,
+                ) {
+                    Text(
+                        when (option) {
+                            ChatTextSize.Small -> "Small"
+                            ChatTextSize.Default -> "Default"
+                            ChatTextSize.Large -> "Large"
+                        },
+                    )
                 }
             }
         }

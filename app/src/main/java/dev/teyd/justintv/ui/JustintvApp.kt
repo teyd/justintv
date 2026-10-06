@@ -59,7 +59,8 @@ fun JustintvApp() {
     val settings = hiltViewModel<PipSettingsViewModel>()
     val inPip = rememberInPip()
     PipBinding(playback, settings.store)
-    KeepAwake(enabled = chrome == PlayerChrome.Expanded && !inPip)
+    val keepScreenOn by settings.store.keepScreenOn.collectAsStateWithLifecycle(initialValue = true)
+    KeepAwake(enabled = chrome == PlayerChrome.Expanded && !inPip && keepScreenOn)
 
     if (inPip && chrome != PlayerChrome.Hidden) {
         VideoPlayer(player = playback.playerHolder, modifier = Modifier.fillMaxSize())

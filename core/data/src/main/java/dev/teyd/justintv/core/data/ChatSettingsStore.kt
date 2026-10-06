@@ -5,11 +5,23 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+/** How large chat lines draw. Emotes scale with the text so lines keep their rhythm. */
+enum class ChatTextSize(
+    val textSp: Int,
+    val emoteSp: Int,
+) {
+    Small(12, 20),
+    Default(14, 24),
+    Large(17, 29),
+}
+
 /**
- * Chat preferences: recent-message history and which third-party emote providers are used.
+ * Chat preferences: recent-message history, which third-party emote providers are used, and
+ * how names and text draw.
  *
  * All switches default to on; the limit only applies while [recentMessages] is on.
  */
@@ -22,6 +34,8 @@ class ChatSettingsStore(
     private val bttvKey = booleanPreferencesKey("chat_bttv")
     private val ffzKey = booleanPreferencesKey("chat_ffz")
     private val showInputKey = booleanPreferencesKey("chat_show_input")
+    private val coloredUsernamesKey = booleanPreferencesKey("chat_colored_usernames")
+    private val chatTextSizeKey = stringPreferencesKey("chat_text_size")
 
     /** On by default: chat starts with the last messages instead of empty. */
     val recentMessages: Flow<Boolean> = dataStore.data.map { it[recentMessagesKey] != false }
@@ -41,6 +55,12 @@ class ChatSettingsStore(
 
     /** On by default. The box is still hidden until the viewer is signed in. */
     val showInput: Flow<Boolean> = dataStore.data.map { it[showInputKey] != false }
+
+    /** On by default: names keep the colour Twitch sends, or the one hashed from the nick. */
+    val coloredUsernames: Flow<Boolean> = dataStore.data.map { it[coloredUsernamesKey] != false }
+
+    /** [ChatTextSize.Default] unless the viewer picked another. */
+    val chatTextSize: Flow<ChatTextSize> = dataStore.data.map { chatTextSizeOf(it[chatTextSizeKey]) }
 
     suspend fun setRecentMessages(enabled: Boolean) {
         dataStore.edit { it[recentMessagesKey] = enabled }
@@ -68,9 +88,25 @@ class ChatSettingsStore(
         dataStore.edit { it[showInputKey] = enabled }
     }
 
+    suspend fun setColoredUsernames(enabled: Boolean) {
+        dataStore.edit { it[coloredUsernamesKey] = enabled }
+    }
+
+    suspend fun setChatTextSize(size: ChatTextSize) {
+        dataStore.edit { it[chatTextSizeKey] = size.name }
+    }
+
     companion object {
         const val DEFAULT_RECENT_MESSAGE_LIMIT = 80
         const val MIN_RECENT_MESSAGE_LIMIT = 1
         const val MAX_RECENT_MESSAGE_LIMIT = 800
+
+        /** Unknown or missing values fall back to [ChatTextSize.Default]. */
+        fun chatTextSizeOf(stored: String?): ChatTextSize =
+            when (stored) {
+                ChatTextSize.Small.name -> ChatTextSize.Small
+                ChatTextSize.Large.name -> ChatTextSize.Large
+                else -> ChatTextSize.Default
+            }
     }
 }
