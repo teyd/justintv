@@ -1,6 +1,3 @@
 {
-    "recommendations": [
-        "hverlin.mise-vscode",
-        "expo.vscode-expo-tools"
-    ]
+  "recommendations": ["hverlin.mise-vscode", "expo.vscode-expo-tools", "oxc.oxc-vscode"]
 }

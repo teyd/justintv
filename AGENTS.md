@@ -10,18 +10,20 @@ Expo ships breaking changes every SDK release. APIs you remember are likely rena
 
 ## Commands
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
+This project uses bun (`bun.lock`), Node 24 and the other tools pinned in `mise.toml`. Use `bun`/`bunx` instead of `npm`/`npx`.
 
 ```bash
-npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
-npx expo start              # start the dev server
-npx expo lint               # lint
-npx tsc --noEmit            # typecheck
-npx expo-doctor             # diagnose dependency and config issues
-npx expo install --fix      # fix incompatible package versions
+bun expo install <package>  # ALWAYS use instead of bun add — resolves SDK-compatible versions
+bun expo start              # start the dev server
+vp check                    # format (oxfmt) + lint (oxlint) + typecheck; `vp check --fix` to autofix
+bun run typecheck           # tsc --noEmit (TypeScript 7)
+bun expo-doctor             # diagnose dependency and config issues
+bun expo install --fix      # fix incompatible package versions
 ```
 
-Run lint and typecheck before declaring any task done.
+`typescript` is intentionally ahead of the Expo SDK's expected version (`expo.install.exclude`). Env vars are declared in `.env.schema` and managed with varlock; use `import { ENV } from 'varlock/env'` rather than `process.env`. Never put secrets in the app bundle.
+
+Run `vp check` before declaring any task done.
 
 ## Navigation & Routing
 

@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# vite+ hooks dispatcher
+.vite-hooks/_
