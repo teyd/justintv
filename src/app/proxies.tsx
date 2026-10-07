@@ -6,6 +6,7 @@ import {
   ListItem,
   RadioButton,
   Row,
+  Switch,
   Text,
   TextButton,
   TextField,
@@ -16,6 +17,11 @@ import { fillMaxSize, fillMaxWidth, paddingAll, weight } from '@expo/ui/jetpack-
 import { Effect } from 'effect';
 import { useState } from 'react';
 
+import {
+  LUMINOUS_SERVERS,
+  loadDisabledLuminous,
+  setLuminousEnabled,
+} from '@/core/luminous/servers';
 import { parseProxyAddress, type Proxy } from '@/core/proxy/parse';
 import { getActiveProxyId, loadProxies, saveProxies, setActiveProxyId } from '@/core/proxy/store';
 import { testProxy } from '@/core/proxy/test';
@@ -25,6 +31,7 @@ export default function Proxies() {
   const address = useNativeState('');
   const [proxies, setProxies] = useState(loadProxies);
   const [activeId, setActive] = useState(getActiveProxyId);
+  const [disabledLuminous, setDisabledLuminous] = useState(loadDisabledLuminous);
   const [status, setStatus] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +54,11 @@ export default function Proxies() {
     saveProxies(list);
     setProxies(list);
     if (id === activeId) select(null);
+  };
+
+  const toggleLuminous = (id: string, enabled: boolean) => {
+    setLuminousEnabled(id, enabled);
+    setDisabledLuminous(loadDisabledLuminous());
   };
 
   const select = (id: string | null) => {
@@ -77,10 +89,36 @@ export default function Proxies() {
         </Button>
         <Text color={colors.onSurfaceVariant}>
           {proxies.length === 0
-            ? 'No proxies yet. Playback goes direct.'
-            : 'Only Twitch playlist requests use the selected proxy.'}
+            ? 'No custom proxies yet. If no Luminous server answers, playback goes direct.'
+            : 'If no Luminous server answers, Twitch playlist requests use the selected proxy.'}
         </Text>
         <LazyColumn modifiers={[weight(1)]}>
+          <ListItem>
+            <ListItem.HeadlineContent>
+              <Text>Luminous ad-free playlists</Text>
+            </ListItem.HeadlineContent>
+            <ListItem.SupportingContent>
+              <Text color={colors.onSurfaceVariant}>
+                Used first when playing a stream; the first server that answers wins.
+              </Text>
+            </ListItem.SupportingContent>
+          </ListItem>
+          {LUMINOUS_SERVERS.map((server) => (
+            <ListItem key={server.id}>
+              <ListItem.HeadlineContent>
+                <Text>{server.name}</Text>
+              </ListItem.HeadlineContent>
+              <ListItem.SupportingContent>
+                <Text color={colors.onSurfaceVariant}>{server.base.replace('https://', '')}</Text>
+              </ListItem.SupportingContent>
+              <ListItem.TrailingContent>
+                <Switch
+                  value={!disabledLuminous.includes(server.id)}
+                  onCheckedChange={(enabled) => toggleLuminous(server.id, enabled)}
+                />
+              </ListItem.TrailingContent>
+            </ListItem>
+          ))}
           {proxies.map((proxy) => (
             <ListItem key={proxy.id}>
               <ListItem.LeadingContent>
