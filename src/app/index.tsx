@@ -1,6 +1,4 @@
-import { Effect, Result } from 'effect';
 import { Link, router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -13,7 +11,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fetchLiveStreams, formatViewers, type LiveStream } from '@/core/twitch/gql';
+import { formatViewers, type LiveStream } from '@/core/twitch/gql';
+import { useLiveStreams } from '@/hooks/use-live-streams';
 
 const palette = {
   dark: { bg: '#0e0e10', card: '#18181b', text: '#efeff1', muted: '#adadb8', accent: '#9147ff' },
@@ -23,46 +22,16 @@ const palette = {
 export default function Live() {
   const c = palette[useColorScheme() === 'light' ? 'light' : 'dark'];
   const insets = useSafeAreaInsets();
-  const [streams, setStreams] = useState<LiveStream[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const cursor = useRef<string | null>(null);
-  const busy = useRef(false);
+  const { streams, error, isRefreshError, refreshing, loadingMore, load, retry } = useLiveStreams();
 
-  const load = useCallback(async (reset: boolean) => {
-    if (busy.current) return;
-    busy.current = true;
-
-    if (reset) setRefreshing(true);
-    else setLoadingMore(true);
-
-    const result = await Effect.runPromise(
-      fetchLiveStreams(reset ? null : cursor.current).pipe(Effect.result),
-    );
-
-    if (Result.isSuccess(result)) {
-      const page = result.success;
-      cursor.current = page.cursor;
-      setError(null);
-      setStreams((prev) => {
-        const base = reset ? [] : prev;
-        const seen = new Set(base.map((s) => s.id));
-
-        return [...base, ...page.streams.filter((s) => !seen.has(s.id))];
-      });
-    } else {
-      setError(result.failure.reason);
-    }
-
-    busy.current = false;
-    setRefreshing(false);
-    setLoadingMore(false);
-  }, []);
-
-  useEffect(() => {
-    void load(true);
-  }, [load]);
+  const errorFeedback = error ? (
+    <View style={styles.feedback}>
+      <Text style={styles.error}>{error}</Text>
+      <Pressable accessibilityRole="button" onPress={retry}>
+        <Text style={{ color: c.accent }}>Retry</Text>
+      </Pressable>
+    </View>
+  ) : null;
 
   return (
     <View style={[styles.root, { backgroundColor: c.bg }]}>
@@ -88,15 +57,31 @@ export default function Live() {
         refreshing={refreshing}
         onRefresh={() => load(true)}
         onEndReachedThreshold={0.6}
-        onEndReached={() => streams.length > 0 && load(false)}
+        onEndReached={() => !error && streams.length > 0 && load(false)}
+        ListHeaderComponent={isRefreshError ? errorFeedback : null}
         ListEmptyComponent={
-          refreshing ? null : (
-            <Text style={[styles.empty, { color: error ? '#f4364c' : c.muted }]}>
-              {error ?? 'No live streams'}
-            </Text>
+          refreshing ? (
+            <ActivityIndicator color={c.accent} style={styles.empty} />
+          ) : (
+            <View style={styles.empty}>
+              {!error && (
+                <>
+                  <Text style={{ color: c.muted }}>No live streams</Text>
+                  <Pressable accessibilityRole="button" onPress={() => load(true)}>
+                    <Text style={{ color: c.accent }}>Refresh</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
           )
         }
-        ListFooterComponent={loadingMore ? <ActivityIndicator color={c.accent} /> : null}
+        ListFooterComponent={
+          error && !isRefreshError ? (
+            errorFeedback
+          ) : loadingMore ? (
+            <ActivityIndicator color={c.accent} />
+          ) : null
+        }
         renderItem={({ item }) => (
           <StreamCard
             stream={item}
@@ -172,7 +157,9 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#eb0400' },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   list: { paddingHorizontal: 16, gap: 16 },
-  empty: { textAlign: 'center', marginTop: 48 },
+  empty: { alignItems: 'center', gap: 12, marginTop: 48 },
+  feedback: { alignItems: 'center', gap: 12, paddingVertical: 16 },
+  error: { color: '#f4364c', textAlign: 'center' },
   card: { borderRadius: 16, overflow: 'hidden' },
   preview: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#26262c' },
   liveBadge: {
