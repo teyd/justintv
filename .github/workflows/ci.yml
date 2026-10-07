@@ -25,6 +25,7 @@ jobs:
           install_args: node bun
       - run: bun install --frozen-lockfile
       - run: bun x vp check
+      - run: bun x vp test run
       - run: bun x varlock load
       - run: bun x expo-doctor
       - run: bun x expo export --platform android --output-dir "$RUNNER_TEMP/export"
