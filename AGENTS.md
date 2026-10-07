@@ -25,6 +25,14 @@ bun expo install --fix      # fix incompatible package versions
 
 Run `vp check` before declaring any task done.
 
+## Lint (anti-slop)
+
+The [anti-slop](https://github.com/dmmulroy/anti-slop) Oxlint ruleset is vendored at `tools/oxlint/anti-slop/` and registered in `vite.config.ts`. It rejects low-evidence patterns: unparsed `unknown`, runtime `typeof`, unsafe dictionary types, manual `_tag` comparisons, module mocks, and unexplained type assertions. The Effect rule group is enabled because the app depends on Effect.
+
+- All rules are errors: run `vp check` (or `vp check --fix`) before declaring work done. `require-readable-spacing` autofixes; type assertions need a `// SAFETY: <invariant>` comment.
+- The vendored directory imports from `vite-plus/lint/plugins`; do not add `@oxlint/plugins` as a dependency. It stays out of lint, fmt and tsc (see `vite.config.ts` and `tsconfig.json`).
+- To update the rules: copy `src/` from the upstream repo over `tools/oxlint/anti-slop/`, re-apply the `vite-plus/lint/plugins` import rewrite, review new rules in `vite.config.ts`, then run `vp check --fix`.
+
 ## Navigation & Routing
 
 - Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
