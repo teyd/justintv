@@ -25,6 +25,17 @@ bun expo install --fix      # fix incompatible package versions
 
 Run `vp check` before declaring any task done.
 
+## Git workflow
+
+`main` is protected: it only changes through squash-merged pull requests, and CI (`ci`, `pr-title`) must pass. Local hooks also refuse commits and pushes on `main`.
+
+- Never work, commit or push on `main`. Every task gets its own branch in its own git worktree, so parallel agents never share a checkout.
+- Create a worktree outside the repo: `git worktree add ../justintv-worktrees/<name> -b <type>/<name> origin/main`. Run `bun install` in it (this also installs the git hooks).
+- Name branches `feat/…`, `fix/…`, `chore/…` or `docs/…`, matching the PR type.
+- Open a pull request for the branch. The title must follow conventional commits (`feat: add x`). If work depends on an unmerged branch, stack it: base the new branch and its PR on that branch.
+- Run `vp check` before pushing. Do not bypass the hooks with `--no-verify`.
+- T3 Code starts new threads in a worktree (`defaultThreadEnvMode` in `t3.json`).
+
 ## Navigation & Routing
 
 - Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.

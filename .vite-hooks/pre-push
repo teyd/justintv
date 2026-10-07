@@ -1,0 +1,6 @@
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "Refusing to push to main. Push a branch and open a pull request, see AGENTS.md." >&2
+    exit 1
+  fi
+done

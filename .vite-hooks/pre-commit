@@ -1,1 +1,7 @@
+branch=$(git symbolic-ref --short -q HEAD || true)
+if [ "$branch" = "main" ]; then
+  echo "Refusing to commit on main. Work on a branch in a worktree, see AGENTS.md." >&2
+  exit 1
+fi
+
 vp staged
