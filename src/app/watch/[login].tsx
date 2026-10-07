@@ -9,20 +9,33 @@ import { resolvePlaybackUrl } from '@/core/twitch/playback';
 
 export default function Watch() {
   const { login, name } = useLocalSearchParams<{ login: string; name?: string }>();
+
+  return <WatchChannel key={login} login={login} name={name} />;
+}
+
+function WatchChannel({ login, name }: { login: string; name?: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    void Effect.runPromise(resolvePlaybackUrl(login).pipe(Effect.result)).then((r) => {
-      if (cancelled) return;
+    const controller = new AbortController();
+    void Effect.runPromise(resolvePlaybackUrl(login).pipe(Effect.result), {
+      signal: controller.signal,
+    })
+      .then((r) => {
+        if (controller.signal.aborted) return;
 
-      if (Result.isSuccess(r)) setUrl(r.success);
-      else setError(r.failure.reason);
-    });
+        if (Result.isSuccess(r)) setUrl(r.success);
+        else setError(r.failure.reason);
+      })
+      .catch((failure) => {
+        if (!controller.signal.aborted) {
+          setError(failure instanceof Error ? failure.message : 'Unable to load playback');
+        }
+      });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [login]);
 

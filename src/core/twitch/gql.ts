@@ -14,11 +14,12 @@ const GqlEnvelope = Schema.Struct({
 
 const gql = <A, I>(query: string, schema: Schema.Codec<A, I>) =>
   Effect.tryPromise({
-    try: async () => {
+    try: async (signal) => {
       const res = await fetch(GQL_URL, {
         method: 'POST',
         headers: { 'Client-Id': CLIENT_ID, 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
+        signal,
       });
 
       if (!res.ok) throw new Error(`GQL responded ${res.status}`);
@@ -30,6 +31,10 @@ const gql = <A, I>(query: string, schema: Schema.Codec<A, I>) =>
     },
     catch: (e) => new TwitchError({ reason: e instanceof Error ? e.message : String(e) }),
   }).pipe(
+    Effect.timeoutOrElse({
+      duration: '15 seconds',
+      orElse: () => Effect.fail(new TwitchError({ reason: 'Twitch request timed out' })),
+    }),
     Effect.flatMap((data) =>
       Schema.decodeUnknownEffect(schema)(data).pipe(
         Effect.mapError(() => new TwitchError({ reason: 'Unexpected response from Twitch' })),
@@ -51,6 +56,21 @@ const LiveStream = Schema.Struct({
 });
 
 export type LiveStream = typeof LiveStream.Type;
+
+/** Deduplicate both overlapping pages and duplicate entries within a page. */
+export const mergeStreams = (previous: readonly LiveStream[], incoming: readonly LiveStream[]) => {
+  const seen = new Set(previous.map((stream) => stream.id));
+  const streams = [...previous];
+
+  for (const stream of incoming) {
+    if (seen.has(stream.id)) continue;
+
+    seen.add(stream.id);
+    streams.push(stream);
+  }
+
+  return streams;
+};
 
 const StreamsData = Schema.Struct({
   streams: Schema.Struct({
