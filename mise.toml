@@ -1,0 +1,8 @@
+[tools]
+node = "22.13"
+java = "temurin-17.0.20+101"
+android-sdk = "23.0"
+
+[env]
+ANDROID_HOME = "{{env.HOME}}/.local/share/mise/installs/android-sdk/23.0"
+ANDROID_SDK_ROOT = "{{env.HOME}}/.local/share/mise/installs/android-sdk/23.0"
