@@ -5,16 +5,17 @@ import TwitchNet from '../../../modules/twitch-net/src/TwitchNetModule';
 import { type Proxy, ProxyList } from './parse';
 
 const LIST_KEY = 'proxies';
+
 const ACTIVE_KEY = 'proxies.active';
 
 const decodeList = Schema.decodeUnknownEffect(Schema.fromJsonString(ProxyList));
 
 export const loadProxies = (): Proxy[] => {
   const raw = Storage.getItemSync(LIST_KEY);
+
   if (raw == null) return [];
-  return Effect.runSync(
-    decodeList(raw).pipe(Effect.orElseSucceed(() => [] as readonly Proxy[])),
-  ).slice();
+
+  return Effect.runSync(decodeList(raw).pipe(Effect.orElseSucceed(() => []))).slice();
 };
 
 export const saveProxies = (list: readonly Proxy[]) => {
@@ -33,6 +34,7 @@ export const setActiveProxyId = (id: string | null) => {
 export const applyActiveProxy = () => {
   const id = getActiveProxyId();
   const proxy = loadProxies().find((p) => p.id === id);
+
   if (proxy) TwitchNet.setProxy(proxy.host, proxy.port, proxy.type);
   else TwitchNet.setProxy(null, 0, 'http');
 };

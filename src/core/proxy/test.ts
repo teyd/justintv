@@ -1,4 +1,4 @@
-import { Effect } from 'effect';
+import { Effect, Predicate } from 'effect';
 
 import TwitchNet from '../../../modules/twitch-net/src/TwitchNetModule';
 import type { ProxyAddress } from './parse';
@@ -16,7 +16,7 @@ export const testProxy = (proxy: ProxyAddress) =>
     Effect.catch((e) =>
       Effect.succeed<ProxyTestResult>({
         ok: false,
-        error: typeof e === 'string' ? e : 'Timed out',
+        error: Predicate.isString(e) ? e : 'Timed out',
       }),
     ),
   );
