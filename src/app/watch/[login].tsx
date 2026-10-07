@@ -5,7 +5,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { fetchPlaybackUrl } from '@/core/twitch/gql';
+import { resolvePlaybackUrl } from '@/core/twitch/playback';
 
 export default function Watch() {
   const { login, name } = useLocalSearchParams<{ login: string; name?: string }>();
@@ -14,7 +14,7 @@ export default function Watch() {
 
   useEffect(() => {
     let cancelled = false;
-    void Effect.runPromise(fetchPlaybackUrl(login).pipe(Effect.result)).then((r) => {
+    void Effect.runPromise(resolvePlaybackUrl(login).pipe(Effect.result)).then((r) => {
       if (cancelled) return;
       if (r._tag === 'Success') setUrl(r.success);
       else setError(r.failure.reason);
