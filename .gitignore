@@ -42,3 +42,7 @@ yarn-error.*
 
 # vite+ hooks dispatcher
 .vite-hooks/_
+
+# local native module builds
+modules/*/android/build/
+modules/*/android/.cxx/
