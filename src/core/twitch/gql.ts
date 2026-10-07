@@ -1,10 +1,16 @@
 import { Data, Effect, Schema } from 'effect';
 
 const GQL_URL = 'https://gql.twitch.tv/gql';
+
 // Public web client id; works without login.
 const CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
 
 export class TwitchError extends Data.TaggedError('TwitchError')<{ reason: string }> {}
+
+const GqlEnvelope = Schema.Struct({
+  data: Schema.optional(Schema.Unknown),
+  errors: Schema.optional(Schema.Array(Schema.Struct({ message: Schema.String }))),
+});
 
 const gql = <A, I>(query: string, schema: Schema.Codec<A, I>) =>
   Effect.tryPromise({
@@ -14,9 +20,12 @@ const gql = <A, I>(query: string, schema: Schema.Codec<A, I>) =>
         headers: { 'Client-Id': CLIENT_ID, 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
       });
+
       if (!res.ok) throw new Error(`GQL responded ${res.status}`);
-      const json = (await res.json()) as { data?: unknown; errors?: { message: string }[] };
+      const json = Schema.decodeUnknownSync(GqlEnvelope)(await res.json());
+
       if (json.errors?.length) throw new Error(json.errors[0].message);
+
       return json.data;
     },
     catch: (e) => new TwitchError({ reason: e instanceof Error ? e.message : String(e) }),
@@ -40,6 +49,7 @@ const LiveStream = Schema.Struct({
   }),
   game: Schema.NullOr(Schema.Struct({ displayName: Schema.String })),
 });
+
 export type LiveStream = typeof LiveStream.Type;
 
 const StreamsData = Schema.Struct({
@@ -92,7 +102,9 @@ export const fetchPlaybackUrl = (login: string) =>
   ).pipe(
     Effect.flatMap((d) => {
       const token = d.streamPlaybackAccessToken;
+
       if (!token) return Effect.fail(new TwitchError({ reason: 'Channel is offline' }));
+
       const params = new URLSearchParams({
         sig: token.signature,
         token: token.value,
@@ -102,6 +114,7 @@ export const fetchPlaybackUrl = (login: string) =>
         playlist_include_framerate: 'true',
         p: String(Math.floor(Math.random() * 1_000_000)),
       });
+
       return Effect.succeed(
         `https://usher.ttvnw.net/api/channel/hls/${login.toLowerCase()}.m3u8?${params}`,
       );
@@ -110,8 +123,12 @@ export const fetchPlaybackUrl = (login: string) =>
 
 export const formatViewers = (n: number | null) => {
   const v = n ?? 0;
+
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+
   if (v >= 10_000) return `${Math.round(v / 1000)}K`;
+
   if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+
   return String(v);
 };

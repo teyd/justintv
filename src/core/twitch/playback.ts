@@ -12,11 +12,15 @@ class LuminousError extends Data.TaggedError('LuminousError')<{ server: string; 
 /** Succeeds only if the server returns a real playlist, so offline servers and channels both lose the race. */
 const probe = (server: LuminousServer, login: string) => {
   const url = luminousPlaylistUrl(server, login);
+
   return Effect.tryPromise({
     try: async (signal) => {
       const res = await fetch(url, { signal });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       if (!(await res.text()).startsWith('#EXTM3U')) throw new Error('Not a playlist');
+
       return url;
     },
     catch: (e) =>
@@ -27,6 +31,7 @@ const probe = (server: LuminousServer, login: string) => {
 /** Playlist URL from the first enabled luminous server that answers. */
 export const fetchLuminousPlaylistUrl = (login: string) => {
   const servers = enabledLuminousServers();
+
   return servers.length === 0
     ? Effect.fail(new LuminousError({ server: '-', reason: 'No servers enabled' }))
     : Effect.raceAll(servers.map((s) => probe(s, login)));

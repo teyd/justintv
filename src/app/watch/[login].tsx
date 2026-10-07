@@ -1,4 +1,4 @@
-import { Effect } from 'effect';
+import { Effect, Result } from 'effect';
 import { useEvent } from 'expo';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -16,9 +16,11 @@ export default function Watch() {
     let cancelled = false;
     void Effect.runPromise(resolvePlaybackUrl(login).pipe(Effect.result)).then((r) => {
       if (cancelled) return;
-      if (r._tag === 'Success') setUrl(r.success);
+
+      if (Result.isSuccess(r)) setUrl(r.success);
       else setError(r.failure.reason);
     });
+
     return () => {
       cancelled = true;
     };
@@ -42,6 +44,7 @@ function Player({ url }: { url: string }) {
   const player = useVideoPlayer({ uri: url, contentType: 'hls' }, (p) => {
     p.play();
   });
+
   const { status, error: failure } = useEvent(player, 'statusChange', {
     status: player.status,
     oldStatus: player.status,

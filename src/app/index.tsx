@@ -1,4 +1,4 @@
-import { Effect } from 'effect';
+import { Effect, Result } from 'effect';
 import { Link, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -33,23 +33,28 @@ export default function Live() {
   const load = useCallback(async (reset: boolean) => {
     if (busy.current) return;
     busy.current = true;
+
     if (reset) setRefreshing(true);
     else setLoadingMore(true);
+
     const result = await Effect.runPromise(
       fetchLiveStreams(reset ? null : cursor.current).pipe(Effect.result),
     );
-    if (result._tag === 'Success') {
+
+    if (Result.isSuccess(result)) {
       const page = result.success;
       cursor.current = page.cursor;
       setError(null);
       setStreams((prev) => {
         const base = reset ? [] : prev;
         const seen = new Set(base.map((s) => s.id));
+
         return [...base, ...page.streams.filter((s) => !seen.has(s.id))];
       });
     } else {
       setError(result.failure.reason);
     }
+
     busy.current = false;
     setRefreshing(false);
     setLoadingMore(false);
@@ -119,6 +124,7 @@ function StreamCard({
   onPress: () => void;
 }) {
   const { broadcaster } = stream;
+
   return (
     <Pressable
       onPress={onPress}

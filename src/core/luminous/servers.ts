@@ -16,9 +16,11 @@ const decodeIds = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Array(
 
 export const loadDisabledLuminous = (): string[] => {
   const raw = Storage.getItemSync(DISABLED_KEY);
+
   if (raw == null) return [];
+
   return Effect.runSync(
-    decodeIds(raw).pipe(Effect.orElseSucceed(() => [] as readonly string[])),
+    decodeIds(raw).pipe(Effect.orElseSucceed((): readonly string[] => [])),
   ).slice();
 };
 
@@ -29,6 +31,7 @@ export const setLuminousEnabled = (id: string, enabled: boolean) => {
 
 export const enabledLuminousServers = () => {
   const disabled = loadDisabledLuminous();
+
   return LUMINOUS_SERVERS.filter((s) => !disabled.includes(s.id));
 };
 
@@ -38,5 +41,6 @@ export const luminousPlaylistUrl = (server: LuminousServer, login: string) => {
     allow_audio_only: 'true',
     fast_bread: 'true',
   });
+
   return `${server.base}/live/${encodeURIComponent(login.toLowerCase())}?${params}`;
 };
