@@ -37,10 +37,13 @@ export default function Proxies() {
 
   const add = () => {
     const parsed = parseProxyAddress(address.value);
+
     if (!parsed) {
       setError('Use host:port, http://host:port or socks5://host:port');
+
       return;
     }
+
     setError(null);
     const next: Proxy = { id: Math.random().toString(36).slice(2), name: parsed.host, ...parsed };
     const list = [...proxies, next];
@@ -53,6 +56,7 @@ export default function Proxies() {
     const list = proxies.filter((p) => p.id !== id);
     saveProxies(list);
     setProxies(list);
+
     if (id === activeId) select(null);
   };
 
