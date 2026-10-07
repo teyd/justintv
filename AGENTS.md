@@ -14,7 +14,9 @@ This project uses bun (`bun.lock`), Node 24 and the other tools pinned in `mise.
 
 ```bash
 bun expo install <package>  # ALWAYS use instead of bun add — resolves SDK-compatible versions
-bun expo start              # start the dev server
+bun run dev                 # Expo dev server for this worktree (stable port + adb reverse)
+bun run dev:android         # build/install/launch on an attached device, same port
+bun run dev:stop            # stop this worktree's Expo/Metro processes
 vp check                    # format (oxfmt) + lint (oxlint) + typecheck; `vp check --fix` to autofix
 bun run typecheck           # tsc --noEmit (TypeScript 7)
 bun expo-doctor             # diagnose dependency and config issues
@@ -23,6 +25,8 @@ bun expo install --fix      # fix incompatible package versions
 
 `typescript` is intentionally ahead of the Expo SDK's expected version (`expo.install.exclude`). Env vars are declared in `.env.schema` and managed with varlock; use `import { ENV } from 'varlock/env'` rather than `process.env`. Never put secrets in the app bundle.
 
+Each worktree gets its own dev server: `bun run dev` assigns a stable per-worktree port, stops any stale servers for that checkout, and remaps `adb reverse tcp:8081` per device so the installed debug build always talks to the worktree that started it. Never run bare `expo start` in a worktree — on a busy port it prompts and exits in non-interactive shells, and the debug build dials `localhost:8081`, which can belong to another worktree. Avoid `--clear`; it wipes the shared `/tmp/metro-cache` for every worktree.
+
 Run `vp check` before declaring any task done.
 
 ## Git workflow
@@ -30,7 +34,7 @@ Run `vp check` before declaring any task done.
 `main` is protected: it only changes through squash-merged pull requests, and CI (`ci`, `pr-title`) must pass. Local hooks also refuse commits and pushes on `main`.
 
 - Never work, commit or push on `main`. Every task gets its own branch in its own git worktree, so parallel agents never share a checkout.
-- Create a worktree outside the repo: `git worktree add ../justintv-worktrees/<name> -b <type>/<name> origin/main`. Run `bun install` in it (this also installs the git hooks).
+- Create a worktree outside the repo: `git worktree add ../justintv-worktrees/<name> -b <type>/<name> origin/main`. Run `bun install && bun scripts/worktree-setup.ts` in it (this installs the git hooks and copies `.env.local` from the primary checkout).
 - Name branches `feat/…`, `fix/…`, `chore/…` or `docs/…`, matching the PR type.
 - Open a pull request for the branch. The title must follow conventional commits (`feat: add x`). If work depends on an unmerged branch, stack it: base the new branch and its PR on that branch.
 - Run `vp check` before pushing. Do not bypass the hooks with `--no-verify`.
