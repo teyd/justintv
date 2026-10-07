@@ -122,7 +122,7 @@ const request = async <A, I>(
     throw new AuthError({
       kind: 'network',
       reason: timedOut
-        ? `Twitch /${path} timed out. Check the emulator's connection and retry.`
+        ? `Twitch /${path} timed out. Check your connection and retry.`
         : `Could not reach id.twitch.tv /${path}. Check your connection and retry.`,
     });
   } finally {

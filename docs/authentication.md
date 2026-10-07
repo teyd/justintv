@@ -10,10 +10,10 @@ Login uses Twitch's device-code grant. There is no auth backend or bundled clien
 4. Rebuild Android after installing the native dependencies:
 
    ```sh
-   bun run android
+   bun expo run:android --device
    ```
 
-   This requires the project's Android SDK/JDK and an emulator or connected device. This app already uses a custom native networking module, so use its Android build rather than Expo Go.
+   Pick your emulator or connected device from the list. This requires the project's Android SDK/JDK. The app already uses a custom native networking module, so use its Android build rather than Expo Go.
 
 ## Try the flow
 
@@ -35,6 +35,6 @@ bunx --no-install vp check
 bun run test
 ```
 
-Automated tests use an injected storage adapter and mocked HTTP transport (not native module mocks) to cover polling, slow-down, timeouts, cancellation, secure persistence failures, refresh rotation, offline recovery, and logout races. Actual browser, Keystore, and Twitch approval behavior still need testing on an Android device.
+Automated tests use an injected storage adapter and mocked HTTP transport (not native module mocks) to cover polling, slow-down, timeouts, cancellation, secure persistence failures, refresh rotation, offline recovery, and logout races. Activation, browser approval, and completed sign-in have been verified manually on an Android emulator.
 
 OAuth requests only target `id.twitch.tv`. Tokens never enter UI state or the Luminous/playback clients, and all response and persisted data are decoded with Effect Schema. Public-client refresh tokens are single-use and have limited lifetimes, so Twitch can require approval again after prolonged inactivity.
