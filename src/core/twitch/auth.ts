@@ -4,7 +4,7 @@ const AUTH_URL = 'https://id.twitch.tv/oauth2';
 
 export class AuthError extends Data.TaggedError('AuthError')<{
   reason: string;
-  kind: 'network' | 'invalid' | 'pending' | 'slow-down' | 'expired' | 'denied';
+  kind: 'network' | 'response' | 'invalid' | 'pending' | 'slow-down' | 'expired' | 'denied';
 }> {}
 
 export const Tokens = Schema.Struct({
@@ -25,11 +25,12 @@ const Identity = Schema.Struct({
   client_id: Schema.String,
   user_id: Schema.String,
   login: Schema.String,
-  scopes: Schema.Array(Schema.String),
-  expires_in: Schema.Number,
 });
 
-const OAuthFailure = Schema.Struct({ message: Schema.optional(Schema.String) });
+const OAuthFailure = Schema.Struct({
+  message: Schema.optional(Schema.String),
+  error: Schema.optional(Schema.String),
+});
 
 export type Tokens = typeof Tokens.Type;
 
@@ -73,7 +74,13 @@ const request = async <A, I>(
 ): Promise<A> => {
   const controller = new AbortController();
   const abort = () => controller.abort();
-  const timer = setTimeout(abort, 15_000);
+  let timedOut = false;
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    abort();
+  }, 15_000);
+
   signal?.addEventListener('abort', abort, { once: true });
 
   if (signal?.aborted) abort();
@@ -89,16 +96,34 @@ const request = async <A, I>(
     if (!response.ok) {
       const error = Schema.decodeUnknownOption(OAuthFailure)(body);
 
-      throw failure(Option.isSome(error) ? (error.value.message ?? '') : '', response.status);
+      const message = Option.isSome(error) ? (error.value.message ?? error.value.error ?? '') : '';
+
+      const rejected = failure(message, response.status);
+
+      throw new AuthError({
+        kind: rejected.kind,
+        reason: `${rejected.reason} (Twitch /${path}, HTTP ${response.status})`,
+      });
     }
 
-    return Schema.decodeUnknownSync(schema)(body);
+    const decoded = Schema.decodeUnknownOption(schema)(body);
+
+    if (Option.isNone(decoded)) {
+      throw new AuthError({
+        kind: 'response',
+        reason: `Twitch /${path} returned an unexpected response (HTTP ${response.status}). This is not a connection error. Please report this message.`,
+      });
+    }
+
+    return decoded.value;
   } catch (error) {
     if (error instanceof AuthError) throw error;
 
     throw new AuthError({
       kind: 'network',
-      reason: 'Could not reach Twitch. Check your connection and retry.',
+      reason: timedOut
+        ? `Twitch /${path} timed out. Check the emulator's connection and retry.`
+        : `Could not reach id.twitch.tv /${path}. Check your connection and retry.`,
     });
   } finally {
     clearTimeout(timer);
@@ -149,8 +174,10 @@ export const pollDeviceLogin = async (
   clientId: string,
   code: DeviceCode,
   signal: AbortSignal,
+  onConnectionChange?: (message: string | null) => void,
 ): Promise<Tokens> => {
   let interval = Math.max(1, code.interval) * 1000;
+  let networkFailures = 0;
 
   while (!signal.aborted && Date.now() < code.expiresAt) {
     await Effect.runPromise(Effect.sleep(Math.min(interval, code.expiresAt - Date.now())), {
@@ -160,7 +187,7 @@ export const pollDeviceLogin = async (
     if (Date.now() >= code.expiresAt) break;
 
     try {
-      return await request(
+      const tokens = await request(
         'token',
         Tokens,
         form(
@@ -173,11 +200,29 @@ export const pollDeviceLogin = async (
         ),
         signal,
       );
+
+      onConnectionChange?.(null);
+
+      return tokens;
     } catch (error) {
       if (!(error instanceof AuthError)) throw error;
 
-      if (error.kind === 'slow-down') interval += 5000;
-      else if (error.kind !== 'pending') throw error;
+      if (signal.aborted) throw error;
+
+      if (error.kind === 'network') {
+        networkFailures += 1;
+
+        if (networkFailures >= 5) throw error;
+
+        interval = Math.max(interval, Math.min(30_000, 5000 * 2 ** networkFailures));
+        onConnectionChange?.(`${error.reason} Retrying automatically…`);
+      } else {
+        networkFailures = 0;
+        onConnectionChange?.(null);
+
+        if (error.kind === 'slow-down') interval += 5000;
+        else if (error.kind !== 'pending') throw error;
+      }
     }
   }
 

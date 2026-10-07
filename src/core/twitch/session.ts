@@ -246,7 +246,9 @@ export class TwitchSession {
 
   private async completeLogin(code: Parameters<typeof pollDeviceLogin>[1], generation: number) {
     try {
-      const tokens = await pollDeviceLogin(this.clientId, code, this.controller.signal);
+      const tokens = await pollDeviceLogin(this.clientId, code, this.controller.signal, (error) => {
+        if (generation === this.generation) this.publish({ error });
+      });
 
       const identity = await validateToken(
         this.clientId,

@@ -26,6 +26,8 @@ Login uses Twitch's device-code grant. There is no auth backend or bundled clien
 
 Also test cancelling, denying consent, letting the code expire, going offline during startup, reconnecting and pressing Retry connection, and disconnecting the app in Twitch's Connections settings. Network failures preserve a saved session; invalid credentials trigger one refresh attempt, then clear the session if refresh is rejected. Validation runs at startup, on foreground resume, and hourly while active.
 
+Activation polling retries temporary network failures with backoff, stopping after five consecutive failures or code expiry. Error messages identify the endpoint (`/device`, `/token`, or `/validate`) and distinguish timeouts, HTTP rejection, and unexpected response data, without revealing credentials. If the emulator cannot connect, check `https://id.twitch.tv/oauth2/validate` in its browser: an invalid-token response without credentials is expected and confirms connectivity. A page-load failure points to emulator networking or DNS rather than Twitch consent.
+
 ## Checks
 
 ```sh

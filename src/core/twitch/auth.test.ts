@@ -142,6 +142,64 @@ describe('Twitch device authorization', () => {
     );
   });
 
+  test('accepts identity responses without unused scope or expiry metadata', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({
+        client_id: 'ours',
+        user_id: '123',
+        login: 'viewer',
+      }),
+    );
+    await expect(validateToken('ours', 'access')).resolves.toMatchObject({ login: 'viewer' });
+  });
+
+  test('accepts OAuth error codes and retries transient network failures', async () => {
+    vi.useFakeTimers();
+
+    const request = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(Response.json({ error: 'authorization_pending' }, { status: 400 }))
+      .mockResolvedValueOnce(Response.json(tokens));
+
+    const feedback = vi.fn();
+
+    const pending = pollDeviceLogin(
+      'ours',
+      { ...device, expiresAt: Date.now() + 60_000 },
+      new AbortController().signal,
+      feedback,
+    );
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(feedback).toHaveBeenCalledWith(expect.stringContaining('Retrying automatically'));
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(feedback).toHaveBeenLastCalledWith(null);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await pending).toEqual(tokens);
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
+  test('bounds repeated network retries without discarding an active code immediately', async () => {
+    vi.useFakeTimers();
+    const request = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+
+    const pending = pollDeviceLogin(
+      'ours',
+      { ...device, expiresAt: Date.now() + 300_000 },
+      new AbortController().signal,
+    );
+
+    const assertion = expect(pending).rejects.toMatchObject({
+      kind: 'network',
+      reason: expect.stringContaining('/token'),
+    });
+
+    await vi.advanceTimersByTimeAsync(95_000);
+    await assertion;
+    expect(request).toHaveBeenCalledTimes(5);
+  });
+
   test('rejects malformed responses and identities for another app', async () => {
     const request = vi
       .spyOn(globalThis, 'fetch')
@@ -149,7 +207,10 @@ describe('Twitch device authorization', () => {
 
     await expect(validateToken('ours', 'access')).rejects.toMatchObject({ kind: 'invalid' });
     request.mockResolvedValue(Response.json({ access_token: 123 }));
-    await expect(refreshTokens('ours', 'refresh')).rejects.toMatchObject({ kind: 'network' });
+    await expect(refreshTokens('ours', 'refresh')).rejects.toMatchObject({
+      kind: 'response',
+      reason: expect.stringContaining('/token'),
+    });
   });
 
   test('times out and aborts a stalled transport', async () => {
@@ -163,7 +224,12 @@ describe('Twitch device authorization', () => {
       });
     });
     const pending = startDeviceLogin('ours');
-    const assertion = expect(pending).rejects.toMatchObject({ kind: 'network' });
+
+    const assertion = expect(pending).rejects.toMatchObject({
+      kind: 'network',
+      reason: expect.stringContaining('/device timed out'),
+    });
+
     await vi.advanceTimersByTimeAsync(15_000);
     await assertion;
     expect(signal?.aborted).toBe(true);
