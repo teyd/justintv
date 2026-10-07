@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 
-import { applyActiveProxy } from '@/core/proxy/store';
 import { SessionProvider } from '@/components/session-provider';
+import { applyActiveProxy } from '@/core/proxy/store';
 
 applyActiveProxy();
 
