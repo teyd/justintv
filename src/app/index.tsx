@@ -43,11 +43,21 @@ export default function Live() {
             <Text style={{ color: c.muted }}>Top streams on Twitch</Text>
           </View>
         </View>
-        <Link href="/proxies" asChild>
-          <Pressable style={StyleSheet.flatten([styles.chip, { backgroundColor: c.card }])}>
-            <Text style={{ color: c.text, fontWeight: '600' }}>Proxies</Text>
-          </Pressable>
-        </Link>
+        <View style={styles.liveRow}>
+          <Link href="/account" asChild>
+            <Pressable
+              accessibilityRole="button"
+              style={StyleSheet.flatten([styles.chip, { backgroundColor: c.card }])}
+            >
+              <Text style={{ color: c.text, fontWeight: '600' }}>Account</Text>
+            </Pressable>
+          </Link>
+          <Link href="/proxies" asChild>
+            <Pressable style={StyleSheet.flatten([styles.chip, { backgroundColor: c.card }])}>
+              <Text style={{ color: c.text, fontWeight: '600' }}>Proxies</Text>
+            </Pressable>
+          </Link>
+        </View>
       </View>
 
       <FlatList
@@ -151,6 +161,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
   },
   title: { fontSize: 28, fontWeight: '800' },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },

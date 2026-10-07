@@ -16,7 +16,13 @@
       "package": "io.github.teyd.justintv",
       "predictiveBackGestureEnabled": false
     },
-    "plugins": ["expo-router", "expo-video", "expo-sqlite"],
+    "plugins": [
+      "expo-router",
+      "expo-video",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
     "scheme": "justintv",
     "experiments": {
       "typedRoutes": true,
