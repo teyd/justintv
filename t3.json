@@ -4,7 +4,7 @@
   "scripts": [
     {
       "name": "Setup Worktree",
-      "command": "bun install",
+      "command": "bun install && bun scripts/worktree-setup.ts",
       "icon": "configure",
       "runOnWorktreeCreate": true,
       "async": false
